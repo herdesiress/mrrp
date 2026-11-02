@@ -4,95 +4,23 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#111111">
-    <title>home</title>
+    <title>your name</title>
     <link rel="stylesheet" href="./editor.css">
     <script src="./editor.js" type="module"></script>
   </head>
   <body>
     <header class="toolbar">
-      <button id="save" type="button">save &amp; push</button>
+      <input id="site-title" type="text" aria-label="Page name and browser tab title" placeholder="tab title" maxlength="120">
+      <button id="save" type="button" disabled>save &amp; push</button>
       <button id="open-versions" type="button">versions</button>
-      <button id="open-table" type="button">table</button>
-      <button id="open-code" type="button">code</button>
-      <button id="add-file" type="button">add file</button>
-      <input id="file-picker" type="file" accept="image/*,audio/*,video/*" hidden>
       <span id="status" role="status" aria-live="polite"></span>
     </header>
-    <main class="workspace">
-      <aside class="syntax">
-        <h2>Markdown</h2>
-        <button type="button" data-insert="# Heading"># Heading</button>
-        <button type="button" data-insert="## Section">## Section</button>
-        <button type="button" data-insert="### Subsection">### Subsection</button>
-        <button type="button" data-insert="#### Small heading">#### Small heading</button>
-        <button type="button" data-insert="##### Tiny heading">##### Tiny heading</button>
-        <button type="button" data-insert="###### Smallest heading">###### Smallest heading</button>
-        <button type="button" data-insert="**bold**">**bold**</button>
-        <button type="button" data-insert="*italic*">*italic*</button>
-        <button type="button" data-insert="~~strike~~">~~strike~~</button>
-        <button type="button" data-insert="`code`">`code`</button>
-        <button type="button" data-insert="[link](https://example.com)">[link](address)</button>
-        <button type="button" data-insert="![description](./media/image.png)">![image](path)</button>
-        <button type="button" data-insert="- list item">- list</button>
-        <button type="button" data-insert="1. list item">1. numbered list</button>
-        <button type="button" data-insert="> a quote">> quote</button>
-        <button type="button" data-insert="---">--- divider</button>
-        <button type="button" id="syntax-code">code block</button>
-        <button type="button" data-insert="- [ ] task">- [ ] task</button>
-        <button type="button" id="syntax-table">table</button>
-        <button type="button" data-insert="This has a  &#10;line break.">line break</button>
-      </aside>
-      <section class="editor">
-        <textarea id="markdown" aria-label="Write your site in Markdown" spellcheck="true"></textarea>
-        <iframe id="preview" src="./preview/" title="Live site"></iframe>
-      </section>
-      <div id="drop-overlay" class="drop-overlay" aria-hidden="true">drop a file to add it at the text cursor</div>
-    </main>
-    <dialog id="table-dialog">
-      <form method="dialog" class="modal">
-        <h2>Table</h2>
-        <div class="table-actions">
-          <button type="button" id="add-row">add row</button>
-          <button type="button" id="add-column">add column</button>
-        </div>
-        <div class="table-scroll"><div id="table-grid"></div></div>
-        <div class="modal-actions">
-          <button value="cancel">cancel</button>
-          <button id="insert-table" value="default">insert</button>
-        </div>
-      </form>
-    </dialog>
-    <dialog id="code-dialog">
-      <form method="dialog" class="modal">
-        <h2>Code block</h2>
-        <label for="code-language">language</label>
-        <select id="code-language">
-          <option value="">auto detect</option>
-          <option>JavaScript</option>
-          <option>TypeScript</option>
-          <option>Python</option>
-          <option>HTML</option>
-          <option>CSS</option>
-          <option>JSON</option>
-          <option>SQL</option>
-          <option>Shell</option>
-          <option>Go</option>
-          <option>Rust</option>
-          <option>Text</option>
-        </select>
-        <textarea id="code-source" rows="12" placeholder="paste code"></textarea>
-        <span id="detected-language"></span>
-        <div class="modal-actions">
-          <button value="cancel">cancel</button>
-          <button id="insert-code" value="default">insert</button>
-        </div>
-      </form>
-    </dialog>
+    <iframe id="site" src="./preview/" title="Edit your site"></iframe>
     <dialog id="versions-dialog">
-      <section class="modal">
+      <section class="versions">
         <h2>Versions</h2>
         <ol id="version-list" class="version-list"></ol>
-        <div class="modal-actions">
+        <div class="actions">
           <button id="close-versions" type="button">close</button>
         </div>
       </section>

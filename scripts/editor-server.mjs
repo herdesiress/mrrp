@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,12 +12,12 @@ const contentPath = resolve(root, "content.md");
 const mediaPath = resolve(root, "public/media");
 const port = Number(process.env.PORT ?? 4173);
 const expectedOrigin = `http://127.0.0.1:${port}`;
-const editableFiles = new Map([
+const editorFiles = new Map([
   ["/", "editor.html"],
   ["/editor.css", "editor.css"],
   ["/editor.js", "editor.js"],
-  ["/content.md", "content.md"],
-  ["/scripts/code-language.mjs", "scripts/code-language.mjs"]
+  ["/node_modules/turndown/lib/turndown.es.js", "node_modules/turndown/lib/turndown.es.js"],
+  ["/node_modules/turndown-plugin-gfm/lib/turndown-plugin-gfm.es.js", "node_modules/turndown-plugin-gfm/lib/turndown-plugin-gfm.es.js"]
 ]);
 const mimeTypes = {
   ".css": "text/css; charset=utf-8",
@@ -41,24 +41,6 @@ const mimeTypes = {
   ".ogv": "video/ogg",
   ".mov": "video/quicktime"
 };
-const imageTypes = new Map([
-  [".png", "image/png"],
-  [".jpg", "image/jpeg"],
-  [".jpeg", "image/jpeg"],
-  [".gif", "image/gif"],
-  [".webp", "image/webp"],
-  [".mp3", "audio/mpeg"],
-  [".m4a", "audio/mp4"],
-  [".aac", "audio/aac"],
-  [".wav", "audio/wav"],
-  [".ogg", "audio/ogg"],
-  [".flac", "audio/flac"],
-  [".mp4", "video/mp4"],
-  [".webm", "video/webm"],
-  [".ogv", "video/ogg"],
-  [".mov", "video/quicktime"]
-]);
-
 const readBody = async (request, limit) => {
   const chunks = [];
   let length = 0;
@@ -125,26 +107,14 @@ const server = createServer(async (request, response) => {
       response.writeHead(403).end("Requests must come from the local editor.");
       return;
     }
-    if (request.method === "POST" && pathname === "/render") {
-      const body = await readBody(request, 100_000);
-      if (!body) {
-        response.writeHead(413).end("Markdown is too large.");
-        return;
-      }
-      const html = renderMarkdownPage(body.toString("utf8"), "/preview/site.css", "/preview/", "/preview/site.js");
-      response.writeHead(200, {
-        "Content-Type": "text/html; charset=utf-8",
-        "Cache-Control": "no-store"
-      }).end(html);
-      return;
-    }
     if (request.method === "PUT" && pathname === "/save") {
       const body = await readBody(request, 100_000);
       if (!body) {
         response.writeHead(413).end("Markdown is too large.");
         return;
       }
-      await writeFile(contentPath, body);
+      const markdown = body.toString("utf8").replace(/\n*$/, "");
+      await writeFile(contentPath, `${markdown}\n`);
       try {
         const version = await publishSite();
         response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
@@ -193,25 +163,6 @@ const server = createServer(async (request, response) => {
       }
       return;
     }
-    const upload = pathname.match(/^\/upload\/([0-9a-f-]{36}\.(?:png|jpe?g|gif|webp|mp3|m4a|aac|wav|ogg|flac|mp4|webm|ogv|mov))$/i);
-    if (request.method === "PUT" && upload) {
-      const filename = upload[1].toLowerCase();
-      const extension = extname(filename);
-      const contentType = imageTypes.get(extension);
-      if (request.headers["content-type"] !== contentType) {
-        response.writeHead(415).end("Image type does not match its file extension.");
-        return;
-      }
-      const body = await readBody(request, 50 * 1024 * 1024);
-      if (!body) {
-        response.writeHead(413).end("Media files must be smaller than 50 MB.");
-        return;
-      }
-      await mkdir(mediaPath, { recursive: true });
-      await writeFile(resolve(mediaPath, filename), body, { flag: "wx" });
-      response.writeHead(201).end();
-      return;
-    }
     if (request.method !== "GET") {
       response.writeHead(405).end("Method not allowed.");
       return;
@@ -239,9 +190,9 @@ const server = createServer(async (request, response) => {
       await sendFile(response, resolve(mediaPath, previewImage[1].toLowerCase()));
       return;
     }
-    const editableFile = editableFiles.get(pathname);
-    if (editableFile) {
-      await sendFile(response, resolve(root, editableFile));
+    const editorFile = editorFiles.get(pathname);
+    if (editorFile) {
+      await sendFile(response, resolve(root, editorFile));
       return;
     }
     response.writeHead(404).end("Not found.");
