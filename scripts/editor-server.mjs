@@ -4,11 +4,12 @@ import { execFile } from "node:child_process";
 import { extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { renderMarkdownPage } from "./markdown.mjs";
+import { renderMarkdownPage, titleFromMarkdown } from "./markdown.mjs";
 
 const execFileAsync = promisify(execFile);
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const contentPath = resolve(root, "content.md");
+const titlePath = resolve(root, "site-title.txt");
 const mediaPath = resolve(root, "public/media");
 const port = Number(process.env.PORT ?? 4173);
 const expectedOrigin = `http://127.0.0.1:${port}`;
@@ -62,7 +63,7 @@ const git = async (...args) => {
 };
 
 const versions = async () => {
-  const output = await git("log", "-n", "50", "--format=%H%x09%cs%x09%s", "--", "content.md", "public/media");
+  const output = await git("log", "-n", "50", "--format=%H%x09%cs%x09%s", "--", "content.md", "site-title.txt", "public/media");
   return output ? output.split("\n").map((line) => {
     const [sha, date, ...subject] = line.split("\t");
     return { sha, date, subject: subject.join("\t") };
@@ -70,14 +71,14 @@ const versions = async () => {
 };
 
 const publishSite = async (subject = "Update personal site") => {
-  await git("add", "--", "content.md", "public/media");
-  const changes = await git("diff", "--cached", "--quiet", "--", "content.md", "public/media")
+  await git("add", "--", "content.md", "site-title.txt", "public/media");
+  const changes = await git("diff", "--cached", "--quiet", "--", "content.md", "site-title.txt", "public/media")
     .then(() => false)
     .catch((error) => {
       if (error.code === 1) return true;
       throw error;
     });
-  if (changes) await git("commit", "--only", "-m", subject, "--", "content.md", "public/media");
+  if (changes) await git("commit", "--only", "-m", subject, "--", "content.md", "site-title.txt", "public/media");
   await git("-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "push", "origin", "HEAD:main");
   return (await versions())[0] ?? null;
 };
@@ -113,8 +114,21 @@ const server = createServer(async (request, response) => {
         response.writeHead(413).end("Markdown is too large.");
         return;
       }
-      const markdown = body.toString("utf8").replace(/\n*$/, "");
+      let payload;
+      try {
+        payload = JSON.parse(body.toString("utf8"));
+      } catch {
+        response.writeHead(400).end("Save data must include page content and title.");
+        return;
+      }
+      if (typeof payload.content !== "string" || typeof payload.title !== "string" || payload.title.length > 120) {
+        response.writeHead(400).end("Save data must include page content and a title under 120 characters.");
+        return;
+      }
+      const markdown = payload.content.replace(/\n*$/, "");
+      const title = payload.title.trim() || "home";
       await writeFile(contentPath, `${markdown}\n`);
+      await writeFile(titlePath, `${title}\n`);
       try {
         const version = await publishSite();
         response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
@@ -150,10 +164,18 @@ const server = createServer(async (request, response) => {
       }
       try {
         await git("restore", `--source=${requestedVersion}`, "--staged", "--worktree", "--", "content.md", "public/media");
+        const hasSavedTitle = Boolean(await git("ls-tree", "-r", "--name-only", requestedVersion, "--", "site-title.txt"));
+        if (hasSavedTitle) {
+          await git("restore", `--source=${requestedVersion}`, "--staged", "--worktree", "--", "site-title.txt");
+        } else {
+          const legacyTitle = titleFromMarkdown(await readFile(contentPath, "utf8"));
+          await writeFile(titlePath, `${legacyTitle}\n`);
+        }
         const version = await publishSite("Restore personal site version");
         response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
           .end(JSON.stringify({
             content: await readFile(contentPath, "utf8"),
+            title: (await readFile(titlePath, "utf8")).trim() || "home",
             version,
             message: "version restored and pushed to main"
           }));
@@ -170,7 +192,8 @@ const server = createServer(async (request, response) => {
 
     if (pathname === "/preview/" || pathname === "/preview/index.html") {
       const markdown = await readFile(contentPath, "utf8");
-      const html = renderMarkdownPage(markdown, "/preview/site.css", "/preview/", "/preview/site.js");
+      const title = (await readFile(titlePath, "utf8")).trim() || "home";
+      const html = renderMarkdownPage(markdown, "/preview/site.css", "/preview/", "/preview/site.js", title);
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store"

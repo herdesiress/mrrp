@@ -78,6 +78,11 @@ button:disabled {
   opacity: 0.5;
 }
 
+button[aria-pressed="true"],
+button[aria-expanded="true"] {
+  color: #d7e3fa;
+}
+
 #status {
   min-width: 0;
   color: #a8c1a8;
@@ -95,6 +100,39 @@ button:disabled {
   height: 100%;
   border: 0;
   background: var(--background);
+}
+
+.markdown-reference {
+  position: fixed;
+  z-index: 1;
+  top: 3rem;
+  left: 1rem;
+  width: min(13rem, calc(100vw - 2rem));
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  background: #111;
+  color: #bcbcbc;
+}
+
+.markdown-reference h2 {
+  margin: 0 0 0.65rem;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.markdown-reference p {
+  margin: 0.4rem 0;
+  overflow-wrap: anywhere;
+}
+
+.markdown-reference code {
+  color: #d7e3fa;
+  font: inherit;
+}
+
+[hidden] {
+  display: none !important;
 }
 
 dialog {

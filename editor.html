@@ -11,11 +11,24 @@
   <body>
     <header class="toolbar">
       <input id="site-title" type="text" aria-label="Page name and browser tab title" placeholder="tab title" maxlength="120">
+      <button id="toggle-markdown" type="button" aria-expanded="false">markdown</button>
+      <button id="toggle-outlines" type="button" aria-pressed="false">outlines</button>
       <button id="save" type="button" disabled>save &amp; push</button>
       <button id="open-versions" type="button">versions</button>
       <span id="status" role="status" aria-live="polite"></span>
     </header>
     <iframe id="site" src="./preview/" title="Edit your site"></iframe>
+    <aside id="markdown-reference" class="markdown-reference" hidden>
+      <h2>Markdown</h2>
+      <p><code># heading</code></p>
+      <p><code>**bold**</code></p>
+      <p><code>*italic*</code></p>
+      <p><code>[link](https://…)</code></p>
+      <p><code>- list item</code></p>
+      <p><code>&gt; quote</code></p>
+      <p><code>`code`</code></p>
+      <p><code>---</code></p>
+    </aside>
     <dialog id="versions-dialog">
       <section class="versions">
         <h2>Versions</h2>

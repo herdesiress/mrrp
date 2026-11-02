@@ -53,13 +53,13 @@ const renderer = {
 
 const markdown = new Marked({ gfm: true, breaks: true, renderer });
 
-const titleFromMarkdown = (source) => {
+export const titleFromMarkdown = (source) => {
   const heading = source.match(/^#\s+(.+)$/m);
   return heading ? heading[1].replace(/[*_`~]/g, "") : "home";
 };
 
-export const renderMarkdownPage = (source, stylesheet = "./site.css", baseHref = "./", script = "./site.js") => {
-  const title = titleFromMarkdown(source);
+export const renderMarkdownPage = (source, stylesheet = "./site.css", baseHref = "./", script = "./site.js", pageTitle) => {
+  const title = pageTitle ?? titleFromMarkdown(source);
   const html = markdown.parse(source);
   return `<!doctype html>
 <html lang="en">

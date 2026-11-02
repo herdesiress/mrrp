@@ -17,6 +17,7 @@ turndown.use(gfm);
 
 let page;
 let savedMarkup = "";
+let savedTitle = "";
 const initializedPages = new WeakSet();
 
 const setStatus = (message, isError = false) => {
@@ -36,22 +37,8 @@ const readResponse = async (response) => {
   return result;
 };
 
-const updateTitle = () => {
-  const title = page.querySelector("h1")?.textContent.trim() || "";
-  titleInput.value = title;
-  site.contentDocument.title = title || "home";
-  document.title = title || "home";
-};
-
-const updatePageTitle = () => {
-  let heading = page.querySelector("h1");
-  if (!heading) {
-    heading = site.contentDocument.createElement("h1");
-    page.prepend(heading);
-  }
-  heading.textContent = titleInput.value;
-  updateTitle();
-  setStatus(page.innerHTML === savedMarkup ? "" : "unsaved");
+const updateStatus = () => {
+  setStatus(page.innerHTML === savedMarkup && titleInput.value === savedTitle ? "" : "unsaved");
 };
 
 const initializeEditor = () => {
@@ -64,11 +51,14 @@ const initializeEditor = () => {
   page.spellcheck = true;
   page.setAttribute("aria-label", "Edit your site");
   const editStyle = previewDocument.createElement("style");
-  editStyle.textContent = ".page[contenteditable=true]{caret-color:#d5d5d5}.page[contenteditable=true]:focus{outline:none}";
+  editStyle.textContent = `
+    .page[contenteditable=true]{caret-color:#d5d5d5}
+    .page[contenteditable=true]:focus{outline:none}
+    .page.editable-outlines :is(h1,h2,h3,h4,h5,h6,p,ul,ol,blockquote,pre,table,hr,figure,img){outline:1px dashed rgb(141 180 255 / 45%);outline-offset:3px}
+  `;
   previewDocument.head.append(editStyle);
   page.addEventListener("input", () => {
-    updateTitle();
-    setStatus(page.innerHTML === savedMarkup ? "" : "unsaved");
+    updateStatus();
   });
   page.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "s") {
@@ -77,7 +67,9 @@ const initializeEditor = () => {
     }
   });
   savedMarkup = page.innerHTML;
-  updateTitle();
+  savedTitle = previewDocument.title;
+  titleInput.value = savedTitle;
+  document.title = savedTitle;
   setStatus("");
   saveButton.disabled = false;
 };
@@ -90,10 +82,11 @@ const save = async () => {
     const markdown = turndown.turndown(page.innerHTML);
     const result = await readResponse(await fetch("./save", {
       method: "PUT",
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
-      body: markdown
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: markdown, title: titleInput.value })
     }));
     savedMarkup = page.innerHTML;
+    savedTitle = titleInput.value;
     setStatus(result.message || "saved and pushed to main");
   } catch (error) {
     setStatus(error.message || "could not publish", true);
@@ -150,7 +143,22 @@ const loadVersions = async () => {
 
 site.addEventListener("load", initializeEditor);
 if (site.contentDocument?.readyState === "complete") initializeEditor();
-titleInput.addEventListener("input", updatePageTitle);
+titleInput.addEventListener("input", () => {
+  const title = titleInput.value.trim() || "home";
+  if (site.contentDocument) site.contentDocument.title = title;
+  document.title = title;
+  updateStatus();
+});
+document.querySelector("#toggle-markdown").addEventListener("click", (event) => {
+  const reference = document.querySelector("#markdown-reference");
+  reference.hidden = !reference.hidden;
+  event.currentTarget.setAttribute("aria-expanded", String(!reference.hidden));
+});
+document.querySelector("#toggle-outlines").addEventListener("click", (event) => {
+  const enabled = event.currentTarget.getAttribute("aria-pressed") !== "true";
+  event.currentTarget.setAttribute("aria-pressed", String(enabled));
+  page?.classList.toggle("editable-outlines", enabled);
+});
 document.querySelector("#open-versions").addEventListener("click", async () => {
   versionsDialog.showModal();
   try {
