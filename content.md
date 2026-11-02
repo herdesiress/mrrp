@@ -1,3 +1,1 @@
-# visual editing check
-
-temporary editor verification
+# your name
