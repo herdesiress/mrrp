@@ -4,6 +4,11 @@
       "slug": "test-4",
       "title": "test",
       "category": "test"
+    },
+    {
+      "slug": "test2",
+      "title": "test2",
+      "category": "test"
     }
   ]
 }
