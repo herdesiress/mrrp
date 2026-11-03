@@ -223,7 +223,7 @@ const gamesMarkup = (settings) => {
   const columns = Array.from({ length: 7 }, (_, column) =>
     `<button class="connect-four-column" type="button" data-column="${column}" aria-label="drop a disc in column ${column + 1}">${Array.from({ length: 6 }, () => '<span class="connect-four-cell"></span>').join("")}</button>`
   ).join("");
-  return `<button class="games-toggle" type="button" aria-label="Open games" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 8h10a4 4 0 0 1 3.8 5.2l-1 3.2a2 2 0 0 1-3.3.8L14 14h-4l-2.5 3.2a2 2 0 0 1-3.3-.8l-1-3.2A4 4 0 0 1 7 8Zm0 2v2m-1-1h2m8-.5h.01m2 2h.01"/></svg></button><aside class="games-panel" hidden aria-label="Games"><div class="game-card"><div class="game-heading"><span>connect four</span><button class="game-reset" type="button">new game</button></div><div class="connect-four-board" role="group" aria-label="Connect Four board">${columns}</div><p class="connect-four-status" role="status" aria-live="polite">your turn · drop a disc</p></div></aside>`;
+  return `<button class="games-toggle" type="button" aria-label="Open games" title="games" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6.5 8.25h11a4.15 4.15 0 0 1 3.95 5.45l-.6 2a2 2 0 0 1-3.55.75L14.75 14h-5.5L6.7 16.45a2 2 0 0 1-3.55-.75l-.6-2A4.15 4.15 0 0 1 6.5 8.25Z"/><path d="M7.5 10.5v4m-2-2h4"/><circle cx="16" cy="11.5" r=".75"/><circle cx="18.5" cy="13.5" r=".75"/></svg></button><aside class="games-panel" hidden aria-label="Games"><div class="game-card"><div class="game-heading"><span>connect four</span><button class="game-reset" type="button">new game</button></div><div class="connect-four-board" role="group" aria-label="Connect Four board">${columns}</div><p class="connect-four-status" role="status" aria-live="polite">your turn · drop a disc</p></div></aside>`;
 };
 
 export const renderMarkdownPage = (source, stylesheet = "./site.css", baseHref = "./", script = "./site.js", pageTitle, settings = {}, updatedAt = new Date().toISOString()) => {
@@ -246,6 +246,8 @@ export const renderMarkdownPage = (source, stylesheet = "./site.css", baseHref =
   }
   const faviconUrl = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23111'/%3E%3Ctext x='32' y='43' fill='%238db4ff' font-family='monospace' font-size='32' text-anchor='middle'%3E%3B3%3C/text%3E%3C/svg%3E";
   const favicon = `<link rel="icon" href="${escapeHtml(faviconUrl)}">`;
+  const assetVersion = encodeURIComponent(new Date().toISOString());
+  const versionedAsset = (path) => `${path}${path.includes("?") ? "&" : "?"}v=${assetVersion}`;
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -255,8 +257,8 @@ export const renderMarkdownPage = (source, stylesheet = "./site.css", baseHref =
     <title>${escapeHtml(title)}</title>
     <base href="${escapeHtml(baseHref)}">
     ${favicon}
-    <link rel="stylesheet" href="${stylesheet}">
-    <script src="${escapeHtml(script)}" defer></script>
+    <link rel="stylesheet" href="${escapeHtml(versionedAsset(stylesheet))}">
+    <script src="${escapeHtml(versionedAsset(script))}" defer></script>
   </head>
   <body>
     ${widgetMarkup(siteSettings, updatedAt)}

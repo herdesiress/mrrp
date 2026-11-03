@@ -132,9 +132,17 @@ test("renders optional games closed with the Connect Four board and visitor togg
     games: { enabled: true }
   });
   assert.match(enabled, /class="games-toggle"[^>]*aria-expanded="false"/);
+  assert.match(enabled, /aria-label="Open games" title="games" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6\.5 8\.25h11/);
+  assert.match(enabled, /<circle cx="16" cy="11\.5" r="\.75"\/><circle cx="18\.5" cy="13\.5" r="\.75"\/><\/svg>/);
   assert.match(enabled, /class="games-panel" hidden/);
   assert.equal((enabled.match(/class="connect-four-column"/g) ?? []).length, 7);
   assert.match(enabled, /your turn · drop a disc/);
+});
+
+test("versions public asset URLs when rendering the page", () => {
+  const html = renderMarkdownPage("# hi");
+  assert.match(html, /href="\.\/site\.css\?v=[^"]+"/);
+  assert.match(html, /src="\.\/site\.js\?v=[^"]+"/);
 });
 
 test("renders a visitor-controlled Spotify card and reopen toggle", () => {
