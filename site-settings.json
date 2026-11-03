@@ -15,7 +15,8 @@
       "enabled": true,
       "endpoint": "https://mrrp-view-counter.salvalichubizenquiries.workers.dev/now-playing",
       "placement": "fixed-bottom-left"
-    }
+    },
+    "siteToolsPlacement": "top-right"
   },
   "games": {
     "enabled": false,

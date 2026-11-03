@@ -1,14 +1,18 @@
 {
+  "categories": [
+    "misc",
+    "Faq/Guide"
+  ],
   "pages": [
     {
-      "slug": "test2-8",
-      "title": "test2",
-      "category": "test"
+      "slug": "links",
+      "title": "links",
+      "category": "misc"
     },
     {
-      "slug": "test2-7",
-      "title": "test2",
-      "category": "test"
+      "slug": "spotify-embed",
+      "title": "Spotify Embed",
+      "category": "Faq/Guide"
     }
   ]
 }
