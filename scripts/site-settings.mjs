@@ -1,3 +1,21 @@
+export const siteToolCorners = ["top-left", "top-right", "bottom-left", "bottom-right"];
+
+const spotifyCorner = (spotify) => ({
+  "fixed-bottom-left": "bottom-left",
+  "fixed-bottom-right": "bottom-right"
+}[spotify?.placement]);
+
+// The info box and the pinned listening card cannot share a corner, so a
+// conflicting choice falls back to the first free corner.
+export const resolveSiteToolsPlacement = (settings = {}) => {
+  const { widgets } = normalizeSiteSettings(settings);
+  const requested = widgets.siteToolsPlacement;
+  if (!widgets.spotify.enabled || !widgets.spotify.endpoint) return requested;
+  const taken = spotifyCorner(widgets.spotify);
+  if (!taken || taken !== requested) return requested;
+  return siteToolCorners.find((corner) => corner !== taken) ?? "top-right";
+};
+
 export const defaultSiteSettings = () => ({
   motif: { enabled: false, symbol: "", count: 3 },
   widgets: {
@@ -7,6 +25,7 @@ export const defaultSiteSettings = () => ({
     clocks: true,
     themeToggle: true,
     backToTop: true,
+    siteToolsPlacement: "top-right",
     spotify: { enabled: false, endpoint: "", placement: "fixed-bottom-right" }
   },
   games: { enabled: false, connectFour: true }
@@ -57,5 +76,6 @@ export const validSiteSettings = (settings) => {
     typeof widgets.spotify?.enabled === "boolean" &&
     typeof widgets.spotify.endpoint === "string" && widgets.spotify.endpoint.length <= 2048 &&
     validUrl(widgets.spotify.endpoint, true) &&
+    (widgets.siteToolsPlacement === undefined || siteToolCorners.includes(widgets.siteToolsPlacement)) &&
     ["fixed-bottom-right", "fixed-bottom-left", "top", "after-intro", "bottom"].includes(widgets.spotify.placement);
 };

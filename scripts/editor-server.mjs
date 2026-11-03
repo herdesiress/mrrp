@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { dirname, extname, resolve } from "node:path";
@@ -253,15 +254,20 @@ const pushMain = async () => {
   await push("-c", "core.compression=0", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "push", "origin", "HEAD:main");
 };
 
+// `git add` fails on a pathspec that does not exist yet (no pages/, no media/),
+// so only hand git the paths that are actually on disk.
+const existingPublishedPaths = () => publishedPaths.filter((path) => existsSync(resolve(root, path)));
+
 const publishSite = async (subject = "Update personal site") => {
-  await git("add", "--", ...publishedPaths);
-  const changes = await git("diff", "--cached", "--quiet", "--", ...publishedPaths)
+  const paths = existingPublishedPaths();
+  await git("add", "--", ...paths);
+  const changes = await git("diff", "--cached", "--quiet", "--", ...paths)
     .then(() => false)
     .catch((error) => {
       if (error.code === 1) return true;
       throw error;
     });
-  if (changes) await git("commit", "--only", "-m", subject, "--", ...publishedPaths);
+  if (changes) await git("commit", "--only", "-m", subject, "--", ...paths);
   const head = await git("rev-parse", "HEAD");
   if (head !== lastPushedHead) {
     await alignWithMain();
@@ -464,6 +470,33 @@ const server = createServer(async (request, response) => {
       } catch (error) {
         response.writeHead(502, { "Content-Type": "application/json; charset=utf-8" })
           .end(JSON.stringify({ error: pushFailure(error).replace("Saved locally, but ", "") }));
+      }
+      return;
+    }
+    if (request.method === "PUT" && pathname === "/pages/order") {
+      let payload;
+      try {
+        payload = JSON.parse((await readBody(request, 10_000) || Buffer.from("{}")).toString("utf8"));
+      } catch {
+        response.writeHead(400).end("Page order must be JSON.");
+        return;
+      }
+      const slugs = Array.isArray(payload.slugs) ? payload.slugs.map((slug) => String(slug)) : [];
+      const pages = await readPages(root);
+      const known = new Set(pages.map((entry) => entry.slug));
+      if (slugs.length !== pages.length || new Set(slugs).size !== slugs.length || !slugs.every((slug) => known.has(slug))) {
+        response.writeHead(400).end("Invalid page order.");
+        return;
+      }
+      const bySlug = new Map(pages.map((entry) => [entry.slug, entry]));
+      await writePages(root, slugs.map((slug) => bySlug.get(slug)));
+      try {
+        const version = await publishSite("Reorder pages");
+        response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
+          .end(JSON.stringify({ pages: await readPages(root), version, message: "page order saved and pushed to main" }));
+      } catch (error) {
+        response.writeHead(502, { "Content-Type": "application/json; charset=utf-8" })
+          .end(JSON.stringify({ error: pushFailure(error) }));
       }
       return;
     }

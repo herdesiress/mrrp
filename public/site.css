@@ -43,6 +43,41 @@ body {
   overscroll-behavior: contain;
 }
 
+.site-sidebar[data-placement="top-right"] {
+  top: 0;
+  right: 0;
+}
+
+.site-sidebar[data-placement="top-left"] {
+  top: 0;
+  left: 0;
+  justify-items: start;
+}
+
+/* the home button owns the top-left corner on inner pages */
+body:has(.home-button) .site-sidebar[data-placement="top-left"] {
+  top: 3.5rem;
+}
+
+.site-sidebar[data-placement="bottom-right"] {
+  top: auto;
+  bottom: 0;
+  align-content: end;
+}
+
+.site-sidebar[data-placement="bottom-left"] {
+  top: auto;
+  bottom: 0;
+  left: 0;
+  justify-items: start;
+  align-content: end;
+}
+
+.site-sidebar[data-placement="bottom-left"] .site-tools-reopen,
+.site-sidebar[data-placement="top-left"] .site-tools-reopen {
+  justify-self: start;
+}
+
 .site-tools {
   position: relative;
   display: grid;
@@ -282,6 +317,16 @@ body:has(.spotify-card[data-placement="fixed-bottom-left"]) .back-to-top {
 body:has(.spotify-reopen:not([hidden]):not([data-placement="fixed-bottom-left"])) .back-to-top {
   right: auto;
   left: 1.25rem;
+}
+
+body:has(.site-sidebar[data-placement="bottom-right"]) .back-to-top {
+  right: auto;
+  left: 1.25rem;
+}
+
+body:has(.site-sidebar[data-placement="bottom-left"]) .back-to-top {
+  left: auto;
+  right: 1.25rem;
 }
 
 .spotify-artwork {
@@ -814,11 +859,15 @@ img {
 }
 
 @media (max-width: 560px) {
-  .site-sidebar {
+  .site-sidebar,
+  .site-sidebar[data-placement] {
     position: relative;
+    inset: auto;
     max-width: none;
     max-height: none;
     overflow: visible;
+    align-content: start;
+    justify-items: stretch;
   }
 
   .site-tools {

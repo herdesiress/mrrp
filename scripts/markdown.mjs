@@ -1,6 +1,6 @@
 import { Marked } from "marked";
 import { normalizeLanguage } from "./code-language.mjs";
-import { normalizeSiteSettings } from "./site-settings.mjs";
+import { normalizeSiteSettings, resolveSiteToolsPlacement } from "./site-settings.mjs";
 
 const escapeHtml = (value) => value
   .replaceAll("&", "&amp;")
@@ -209,7 +209,8 @@ const widgetMarkup = (settings, updatedAt, version, navigation = "") => {
   if (widgets.themeToggle) tools.push('<button class="theme-toggle" type="button" aria-label="Switch to light theme">light</button>');
   tools.push(`<span class="site-version">version: <code>${escapeHtml(version || "unknown")}</code></span>`);
   const header = tools.length ? `<header class="site-tools" aria-label="Site information"><button class="site-tools-close" type="button" aria-label="Hide site information">×</button><div class="site-tools-content">${tools.join("")}</div></header><button class="site-tools-reopen" type="button" aria-expanded="true" hidden>site info</button>` : "";
-  const sidebar = header || navigation ? `<div class="site-sidebar">${header}${navigation}</div>` : "";
+  const placement = resolveSiteToolsPlacement({ ...settings, widgets });
+  const sidebar = header || navigation ? `<div class="site-sidebar" data-placement="${escapeHtml(placement)}">${header}${navigation}</div>` : "";
   const backToTop = widgets.backToTop ? '<button class="back-to-top" type="button" aria-hidden="true" tabindex="-1">back to top</button>' : "";
   return `${sidebar}${backToTop}`;
 };

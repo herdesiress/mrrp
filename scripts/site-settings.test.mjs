@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { defaultSiteSettings, normalizeSiteSettings, validSiteSettings } from "./site-settings.mjs";
+import { defaultSiteSettings, normalizeSiteSettings, resolveSiteToolsPlacement, validSiteSettings } from "./site-settings.mjs";
 
 test("normalizes existing motif-only settings with visitor feature defaults", () => {
   const settings = normalizeSiteSettings({ motif: { enabled: true, symbol: ";3", count: 3 } });
@@ -60,4 +60,24 @@ test("validates the public view counter endpoint", () => {
   assert.equal(validSiteSettings(settings), true);
   settings.widgets.viewCounterEndpoint = "http://counter.example/";
   assert.equal(validSiteSettings(settings), false);
+});
+
+test("validates the site info corner", () => {
+  const settings = defaultSiteSettings();
+  assert.equal(settings.widgets.siteToolsPlacement, "top-right");
+  assert.equal(validSiteSettings(settings), true);
+  settings.widgets.siteToolsPlacement = "middle";
+  assert.equal(validSiteSettings(settings), false);
+});
+
+test("keeps the info box out of the corner the listening card owns", () => {
+  const settings = defaultSiteSettings();
+  settings.widgets.spotify = { enabled: true, endpoint: "https://status.example/now-playing", placement: "fixed-bottom-right" };
+  settings.widgets.siteToolsPlacement = "bottom-right";
+  assert.equal(resolveSiteToolsPlacement(settings), "top-left");
+  settings.widgets.siteToolsPlacement = "top-left";
+  assert.equal(resolveSiteToolsPlacement(settings), "top-left");
+  settings.widgets.spotify.enabled = false;
+  settings.widgets.siteToolsPlacement = "bottom-right";
+  assert.equal(resolveSiteToolsPlacement(settings), "bottom-right");
 });

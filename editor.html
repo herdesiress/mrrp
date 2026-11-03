@@ -94,6 +94,14 @@
         </div>
         <div class="settings-content" data-settings="site" hidden>
           <h2>Site features</h2>
+          <label for="site-tools-placement">site info position</label>
+          <select id="site-tools-placement">
+            <option value="top-right" data-label="pinned top right">pinned top right</option>
+            <option value="top-left" data-label="pinned top left">pinned top left</option>
+            <option value="bottom-right" data-label="pinned bottom right">pinned bottom right</option>
+            <option value="bottom-left" data-label="pinned bottom left">pinned bottom left</option>
+          </select>
+          <p>The site info box and the pages box stay pinned to that corner while you scroll. A corner already used by the listening card cannot be picked.</p>
           <label><input id="feature-view-count" type="checkbox"> visitor count</label>
           <label for="view-counter-endpoint">counter endpoint</label>
           <input id="view-counter-endpoint" type="url" autocomplete="off" placeholder="https://…workers.dev/">

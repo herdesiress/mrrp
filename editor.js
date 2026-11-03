@@ -286,12 +286,37 @@ const siteWidgetsFromForm = () => ({
   clocks: document.querySelector("#feature-clocks").checked,
   themeToggle: document.querySelector("#feature-theme").checked,
   backToTop: document.querySelector("#feature-back-top").checked,
+  siteToolsPlacement: document.querySelector("#site-tools-placement").value,
   spotify: {
     enabled: document.querySelector("#feature-spotify").checked,
     endpoint: document.querySelector("#spotify-endpoint").value.trim(),
     placement: document.querySelector("#spotify-placement").value
   }
 });
+
+const cornerLabels = {
+  "top-left": "pinned top left",
+  "top-right": "pinned top right",
+  "bottom-left": "pinned bottom left",
+  "bottom-right": "pinned bottom right"
+};
+
+// Keep the info box out of the corner the pinned listening card already owns.
+const syncPlacementOptions = () => {
+  const select = document.querySelector("#site-tools-placement");
+  const cardOn = document.querySelector("#feature-spotify").checked &&
+    document.querySelector("#spotify-endpoint").value.trim().length > 0;
+  const taken = cardOn
+    ? { "fixed-bottom-left": "bottom-left", "fixed-bottom-right": "bottom-right" }[document.querySelector("#spotify-placement").value] ?? null
+    : null;
+  for (const option of select.options) {
+    option.disabled = option.value === taken;
+    option.textContent = `${cornerLabels[option.value] ?? option.value}${option.disabled ? " (used by the listening card)" : ""}`;
+  }
+  if (select.value === taken) {
+    select.value = ["top-left", "top-right", "bottom-left", "bottom-right"].find((corner) => corner !== taken);
+  }
+};
 
 const syncSettingsForm = () => {
   document.querySelector("#setting-outlines").checked = Boolean(siteSettings.ui?.outlines);
@@ -312,6 +337,8 @@ const syncSettingsForm = () => {
   document.querySelector("#feature-spotify").checked = Boolean(siteSettings.widgets.spotify.enabled);
   document.querySelector("#spotify-endpoint").value = siteSettings.widgets.spotify.endpoint;
   document.querySelector("#spotify-placement").value = siteSettings.widgets.spotify.placement;
+  document.querySelector("#site-tools-placement").value = siteSettings.widgets.siteToolsPlacement ?? "top-right";
+  syncPlacementOptions();
   document.querySelector("#games-enabled").checked = Boolean(siteSettings.games?.enabled);
   document.querySelector("#game-connect-four-enabled").checked = siteSettings.games?.connectFour !== false;
 };
@@ -1694,6 +1721,11 @@ motifCountInput.addEventListener("change", async () => {
     setStatus(error.message || "could not preview floating text", true);
   }
 });
+for (const id of ["#feature-spotify", "#spotify-endpoint", "#spotify-placement"]) {
+  const element = document.querySelector(id);
+  element.addEventListener("input", syncPlacementOptions);
+  element.addEventListener("change", syncPlacementOptions);
+}
 document.querySelector("#apply-settings").addEventListener("click", applySettings);
 document.querySelector("#close-settings").addEventListener("click", () => settingsDialog.close());
 document.querySelector("#open-versions").addEventListener("click", async () => {
@@ -1732,7 +1764,7 @@ const switchPage = async (slug) => {
   setStatus(`editing ${slug === "home" ? "home" : slug}`);
 };
 
-const pageRow = (entry, isCurrent) => {
+const pageRow = (entry, isCurrent, index, total) => {
   const item = document.createElement("li");
   item.className = "page-row";
   const fields = document.createElement("div");
@@ -1789,13 +1821,53 @@ const pageRow = (entry, isCurrent) => {
       setStatus(error.message || "could not delete page", true);
     }
   });
-  actions.append(open, rename, remove);
+  const up = document.createElement("button");
+  up.type = "button";
+  up.textContent = "↑";
+  up.setAttribute("aria-label", `Move ${entry.slug} up`);
+  up.disabled = index === 0;
+  up.addEventListener("click", () => movePage(entry.slug, -1));
+  const down = document.createElement("button");
+  down.type = "button";
+  down.textContent = "↓";
+  down.setAttribute("aria-label", `Move ${entry.slug} down`);
+  down.disabled = index === total - 1;
+  down.addEventListener("click", () => movePage(entry.slug, 1));
+  actions.append(up, down, open, rename, remove);
   item.append(fields, actions);
   return item;
 };
 
+let currentPages = [];
+
+const movePage = async (slug, delta) => {
+  const order = currentPages.map((entry) => entry.slug);
+  const index = order.indexOf(slug);
+  const target = index + delta;
+  if (index < 0 || target < 0 || target >= order.length) return;
+  [order[index], order[target]] = [order[target], order[index]];
+  try {
+    await readResponse(await fetch("./pages/order", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ slugs: order })
+    }));
+    persistDraft();
+    draftRestorationStarted = false;
+    draftRestorationRunning = false;
+    const loaded = new Promise((resolve) => site.addEventListener("load", resolve, { once: true }));
+    site.src = previewUrl();
+    await loaded;
+    await loadPages();
+    setStatus("page order saved");
+  } catch (error) {
+    setStatus(error.message || "could not reorder pages", true);
+  }
+};
+
 const loadPages = async () => {
   const result = await pagesRequest("GET");
+  currentPages = result.pages;
   pageListElement.replaceChildren();
   const homeItem = document.createElement("li");
   homeItem.className = "page-row";
@@ -1816,7 +1888,9 @@ const loadPages = async () => {
   homeActions.append(homeOpen);
   homeItem.append(homeFields, homeActions);
   pageListElement.append(homeItem);
-  for (const entry of result.pages) pageListElement.append(pageRow(entry, entry.slug === currentPage));
+  for (const [index, entry] of result.pages.entries()) {
+    pageListElement.append(pageRow(entry, entry.slug === currentPage, index, result.pages.length));
+  }
 };
 
 document.querySelector("#open-pages").addEventListener("click", async () => {
