@@ -2,7 +2,7 @@
   "motif": {
     "enabled": true,
     "symbol": ";3",
-    "count": 3
+    "count": 20
   },
   "widgets": {
     "viewCount": true,
@@ -16,5 +16,8 @@
       "endpoint": "https://mrrp-view-counter.salvalichubizenquiries.workers.dev/now-playing",
       "placement": "fixed-bottom-right"
     }
+  },
+  "games": {
+    "enabled": true
   }
 }
