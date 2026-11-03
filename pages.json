@@ -9,6 +9,11 @@
       "slug": "test2",
       "title": "test2",
       "category": "test"
+    },
+    {
+      "slug": "test2-2",
+      "title": "test2",
+      "category": "test"
     }
   ]
 }
