@@ -637,20 +637,38 @@ const server = createServer(async (request, response) => {
     }
 
     if (pathname === "/preview/" || pathname === "/preview/index.html") {
-      const requestedPage = new URL(request.url, "http://localhost").searchParams.get("page") ?? "home";
+      const state = await readSiteState("home");
+      const version = await readSiteVersion();
+      const navigation = renderSiteNavigation({ pages: state.pages, isHome: true });
+      const html = renderMarkdownPage(state.content, "./site.css", "./", "./site.js", state.title, state.settings, new Date(state.updatedAt).toISOString(), version, navigation);
+      response.writeHead(200, {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store"
+      }).end(html);
+      return;
+    }
+    // Page previews live at /preview/<slug>/ so the same relative links the
+    // built site uses (./other-page/, ../ for home) resolve here too.
+    const previewPage = pathname.match(/^\/preview\/([a-z0-9]+(?:-[a-z0-9]+)*)(\/)?$/);
+    if (previewPage && (request.method === "GET" || request.method === "HEAD")) {
+      if (!previewPage[2]) {
+        response.writeHead(308, { Location: `${pathname}/` }).end();
+        return;
+      }
       let state;
       try {
-        state = await readSiteState(requestedPage);
+        state = await readSiteState(previewPage[1]);
       } catch (error) {
         if (error.statusCode === 404) {
-          response.writeHead(404).end("Page not found.");
+          response.writeHead(404, { "Content-Type": "text/html; charset=utf-8" })
+            .end(`<!doctype html><meta charset="utf-8"><title>page not found</title><p>No page called ${previewPage[1].replace(/[<>&"]/g, "")}.</p><p><a href="../">back home</a></p>`);
           return;
         }
         throw error;
       }
       const version = await readSiteVersion();
-      const navigation = renderSiteNavigation({ pages: state.pages, isHome: requestedPage === "home" });
-      const html = renderMarkdownPage(state.content, "/preview/site.css", "/preview/", "/preview/site.js", state.title, state.settings, new Date(state.updatedAt).toISOString(), version, navigation);
+      const navigation = renderSiteNavigation({ pages: state.pages, isHome: false });
+      const html = renderMarkdownPage(state.content, "../site.css", "../", "../site.js", state.title, state.settings, new Date(state.updatedAt).toISOString(), version, navigation);
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store"

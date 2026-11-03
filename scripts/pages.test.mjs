@@ -37,18 +37,20 @@ test("accepts the legacy bare array and rejects junk", () => {
 
 test("home links pages relative to itself and has no home button", () => {
   const nav = renderSiteNavigation({ pages: [{ slug: "about", title: "about" }], isHome: true });
-  assert.match(nav, /href="\.\/about\/"/);
-  assert.doesNotMatch(nav, /home-button/);
+  assert.match(nav.pages, /href="\.\/about\/"/);
+  assert.match(nav.pages, /data-page-slug="about"/);
+  assert.equal(nav.home, "");
 });
 
 test("internal pages link back with ../ and show a home button", () => {
   const nav = renderSiteNavigation({ pages: [{ slug: "about", title: "about" }], isHome: false });
-  assert.match(nav, /class="home-button" href="\.\.\/"/);
-  assert.match(nav, /href="\.\.\/about\/"/);
+  assert.match(nav.home, /class="home-button" href="\.\.\/"/);
+  assert.match(nav.home, /data-page-slug="home"/);
+  assert.match(nav.pages, /href="\.\.\/about\/"/);
 });
 
 test("escapes page names in the nav", () => {
   const nav = renderSiteNavigation({ pages: [{ slug: "x", title: "<script>alert(1)</script>" }] });
-  assert.doesNotMatch(nav, /<script>/);
-  assert.match(nav, /&lt;script&gt;/);
+  assert.doesNotMatch(nav.pages, /<script>/);
+  assert.match(nav.pages, /&lt;script&gt;/);
 });

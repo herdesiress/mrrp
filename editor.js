@@ -120,7 +120,20 @@ let page;
 let currentPage = "home";
 const pageQuery = () => (currentPage === "home" ? "" : `?page=${encodeURIComponent(currentPage)}`);
 const stateUrl = () => `./state${pageQuery()}`;
-const previewUrl = () => `./preview/${pageQuery()}`;
+const previewUrl = () => `./preview/${currentPage === "home" ? "" : `${currentPage}/`}`;
+// Reload the preview from the server, but never reload a draft URL: it is a
+// snapshot of the cache, not the page that was just saved.
+const reloadPreview = async () => {
+  const loaded = new Promise((resolve) => site.addEventListener("load", resolve, { once: true }));
+  let currentPath = "";
+  try {
+    currentPath = site.contentWindow.location.pathname;
+  } catch {}
+  const wanted = new URL(previewUrl(), window.location.href).pathname;
+  if (currentPath === wanted) site.contentWindow.location.reload();
+  else site.src = previewUrl();
+  await loaded;
+};
 let lastPushed;
 let baseRevision = null;
 let recoveryDraft = null;
@@ -420,6 +433,15 @@ const renderDraft = async (draft) => {
 };
 
 const initializeEditor = async () => {
+  let framePath = "";
+  try {
+    framePath = site.contentWindow.location.pathname;
+  } catch {}
+  if (framePath && !framePath.startsWith("/preview/") && !framePath.startsWith("/draft-preview/")) {
+    // A stray navigation inside the iframe must never render the editor twice.
+    site.src = previewUrl();
+    return;
+  }
   const previewDocument = site.contentDocument;
   page = previewDocument?.querySelector(".page");
   if (!page) return;
@@ -573,8 +595,21 @@ const initializeEditor = async () => {
   });
   installMediaDrop(previewDocument);
   installMediaChrome(previewDocument);
+  // Navigation inside the preview switches the edited page instead of
+  // navigating, so the iframe can never land on the editor or a 404.
+  previewDocument.addEventListener("click", (event) => {
+    const link = event.target.closest?.(".home-button, .site-pages a");
+    if (!link) return;
+    event.preventDefault();
+    switchPage(link.dataset.pageSlug || "home");
+  }, true);
   titleInput.value = previewDocument.title;
   document.title = previewDocument.title;
+  titleInput.disabled = currentPage !== "home";
+  titleInput.title = currentPage === "home" ? "" : "rename this page in the pages dialog";
+  titleInput.setAttribute("aria-label", currentPage === "home"
+    ? "Page name and browser tab title"
+    : "This page's name is changed in the pages dialog");
   const savedUI = siteSettings.ui ?? { outlines: false, markdown: false };
   siteSettings.ui = savedUI;
   const outlineButton = document.querySelector("#toggle-outlines");
@@ -640,9 +675,7 @@ const save = async () => {
     versionNameInput.value = "";
     versionNameInput.hidden = true;
     versionNameToggle.setAttribute("aria-pressed", "false");
-    const loaded = new Promise((resolve) => site.addEventListener("load", resolve, { once: true }));
-    site.contentWindow.location.reload();
-    await loaded;
+    await reloadPreview();
     setStatus(result.message || "saved and pushed to main");
     watchDeploy(result.version?.sha);
   } catch (error) {
@@ -669,15 +702,13 @@ const restoreVersion = async (version) => {
       ui: siteSettings.ui ?? { outlines: false, markdown: false }
     };
     localStorage.removeItem(draftKey);
-    const state = await readResponse(await fetch("./state", { cache: "no-store" }));
+    const state = await readResponse(await fetch(stateUrl(), { cache: "no-store" }));
     baseRevision = state.revision;
     lastPushed = pagePayload(state);
     localStorage.removeItem(recoveryKey);
     recoveryDraft = null;
     recoverButton.hidden = true;
-    const loaded = new Promise((resolve) => site.addEventListener("load", resolve, { once: true }));
-    site.contentWindow.location.reload();
-    await loaded;
+    await reloadPreview();
     versionsDialog.close();
     setStatus("version restored and pushed to main");
   } catch (error) {

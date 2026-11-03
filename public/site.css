@@ -880,7 +880,14 @@ img {
   }
 
   .home-button {
-    position: absolute;
+    position: fixed;
+    top: 0.5rem;
+    left: 0.5rem;
+  }
+
+  /* keep the in-flow site info box clear of the fixed home button */
+  body:has(.home-button) .site-sidebar {
+    margin-top: 2.75rem;
   }
 
   .site-tools-close {

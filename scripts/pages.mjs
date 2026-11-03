@@ -93,12 +93,14 @@ const escapeHtml = (value) => String(value)
 
 const homeIcon = '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.6 12 3.8l8.5 6.8"/><path d="M5.8 9.4V20h12.4V9.4"/><path d="M10 20v-5.2h4V20"/></svg>';
 
+// The home button is kept separate from the pages box: it belongs to the page
+// itself, not to the pinned sidebar, so it keeps its corner on every width.
 export const renderSiteNavigation = ({ pages = [], isHome = true } = {}) => {
   const links = pages.map((page) => {
     const category = page.category ? ` data-category="${escapeHtml(page.category)}"` : "";
-    return `<a href="${isHome ? "./" : "../"}${escapeHtml(page.slug)}/"${category}>${escapeHtml(page.title)}</a>`;
+    return `<a href="${isHome ? "./" : "../"}${escapeHtml(page.slug)}/" data-page-slug="${escapeHtml(page.slug)}"${category}>${escapeHtml(page.title)}</a>`;
   }).join("");
-  const home = isHome ? "" : `<a class="home-button" href="../" aria-label="Back to home" title="home">${homeIcon}</a>`;
-  const list = links ? `<nav class="site-pages" aria-label="Pages"><span class="site-pages-heading">pages</span>${links}</nav>` : "";
-  return `${home}${list}`;
+  const home = isHome ? "" : `<a class="home-button" href="../" data-page-slug="home" aria-label="Back to home" title="home">${homeIcon}</a>`;
+  const box = links ? `<nav class="site-pages" aria-label="Pages"><span class="site-pages-heading">pages</span>${links}</nav>` : "";
+  return { home, pages: box };
 };
