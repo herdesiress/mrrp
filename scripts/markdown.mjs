@@ -210,9 +210,11 @@ const widgetMarkup = (settings, updatedAt, version, navigation = "") => {
   tools.push(`<span class="site-version">version: <code>${escapeHtml(version || "unknown")}</code></span>`);
   const header = tools.length ? `<header class="site-tools" aria-label="Site information"><button class="site-tools-close" type="button" aria-label="Hide site information">×</button><div class="site-tools-content">${tools.join("")}</div></header><button class="site-tools-reopen" type="button" aria-expanded="true" hidden>site info</button>` : "";
   const placement = resolveSiteToolsPlacement({ ...settings, widgets });
-  const sidebar = header || navigation ? `<div class="site-sidebar" data-placement="${escapeHtml(placement)}">${header}${navigation}</div>` : "";
+  const pagesBox = navigation?.pages ?? "";
+  const homeButton = navigation?.home ?? "";
+  const sidebar = header || pagesBox ? `<div class="site-sidebar" data-placement="${escapeHtml(placement)}">${header}${pagesBox}</div>` : "";
   const backToTop = widgets.backToTop ? '<button class="back-to-top" type="button" aria-hidden="true" tabindex="-1">back to top</button>' : "";
-  return `${sidebar}${backToTop}`;
+  return `${homeButton}${sidebar}${backToTop}`;
 };
 
 const spotifyMarkup = (settings) => {
