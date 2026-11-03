@@ -270,14 +270,21 @@ const publishSite = async (subject = "Update personal site") => {
   if (changes) await git("commit", "--only", "-m", subject, "--", ...paths);
   const head = await git("rev-parse", "HEAD");
   if (head !== lastPushedHead) {
+    const retryable = (error) =>
+      /non-fast-forward|fetch first|\[rejected\]|\[remote rejected\]|cannot lock ref|divergent branches/i
+        .test(error.stderr ?? error.message ?? "");
     await alignWithMain();
-    try {
-      await pushMain();
-    } catch (error) {
-      const details = error.stderr ?? "";
-      if (!/non-fast-forward|fetch first|\[rejected\]|divergent branches/i.test(details)) throw error;
-      await alignWithMain();
-      await pushMain();
+    for (let attempt = 0; ; attempt += 1) {
+      try {
+        await pushMain();
+        break;
+      } catch (error) {
+        // Someone else pushed at the same moment; re-sync and try again a few
+        // times instead of telling the user their save failed.
+        if (attempt >= 2 || !retryable(error)) throw error;
+        await new Promise((done) => setTimeout(done, 400 * (attempt + 1)));
+        await alignWithMain();
+      }
     }
     lastPushedHead = await git("rev-parse", "HEAD");
   }
@@ -557,6 +564,11 @@ const server = createServer(async (request, response) => {
       const pages = await readPages(root);
       const index = pages.findIndex((entry) => entry.slug === slug);
       if (index === -1) {
+        // Deleting something already gone is a success; the list just refreshes.
+        if (request.method === "DELETE") {
+          await reply({ message: "page already removed" });
+          return;
+        }
         response.writeHead(404).end("Page not found.");
         return;
       }
@@ -668,7 +680,7 @@ const server = createServer(async (request, response) => {
       }
       const version = await readSiteVersion();
       const navigation = renderSiteNavigation({ pages: state.pages, isHome: false });
-      const html = renderMarkdownPage(state.content, "../site.css", "../", "../site.js", state.title, state.settings, new Date(state.updatedAt).toISOString(), version, navigation);
+      const html = renderMarkdownPage(state.content, "site.css", "../", "site.js", state.title, state.settings, new Date(state.updatedAt).toISOString(), version, navigation);
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store"

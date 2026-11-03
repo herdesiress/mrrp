@@ -95,12 +95,15 @@ const homeIcon = '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height=
 
 // The home button is kept separate from the pages box: it belongs to the page
 // itself, not to the pinned sidebar, so it keeps its corner on every width.
+// Everything here is relative to the site root, which is what <base> points at
+// on both the home page (./) and inner pages (../). Adding another ../ would
+// resolve against the base and climb one level too far.
 export const renderSiteNavigation = ({ pages = [], isHome = true } = {}) => {
   const links = pages.map((page) => {
     const category = page.category ? ` data-category="${escapeHtml(page.category)}"` : "";
-    return `<a href="${isHome ? "./" : "../"}${escapeHtml(page.slug)}/" data-page-slug="${escapeHtml(page.slug)}"${category}>${escapeHtml(page.title)}</a>`;
+    return `<a href="./${escapeHtml(page.slug)}/" data-page-slug="${escapeHtml(page.slug)}"${category}>${escapeHtml(page.title)}</a>`;
   }).join("");
-  const home = isHome ? "" : `<a class="home-button" href="../" data-page-slug="home" aria-label="Back to home" title="home">${homeIcon}</a>`;
+  const home = isHome ? "" : `<a class="home-button" href="./" data-page-slug="home" aria-label="Back to home" title="home">${homeIcon}</a>`;
   const box = links ? `<nav class="site-pages" aria-label="Pages"><span class="site-pages-heading">pages</span>${links}</nav>` : "";
   return { home, pages: box };
 };

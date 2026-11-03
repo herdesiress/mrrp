@@ -37,7 +37,7 @@ await writeFile("dist/index.html", renderMarkdownPage(
 for (const page of pages) {
   await mkdir(resolve("dist", page.slug), { recursive: true });
   await writeFile(resolve("dist", page.slug, "index.html"), renderMarkdownPage(
-    bodies.get(page.slug), "../site.css", "../", "../site.js", page.title, settings, updatedAt, version,
+    bodies.get(page.slug), "site.css", "../", "site.js", page.title, settings, updatedAt, version,
     renderSiteNavigation({ pages, isHome: false })
   ));
 }

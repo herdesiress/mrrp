@@ -13,8 +13,17 @@ if (files.length !== expectedFiles.length || expectedFiles.some((file) => !files
 }
 for (const page of pages) {
   const pageHtml = await readFile(resolve("dist", page.slug, "index.html"), "utf8");
-  if (!pageHtml.includes('class="home-button"')) throw new Error(`Page ${page.slug} is missing its home button.`);
-  if (!pageHtml.includes(`../${page.slug}/`)) throw new Error(`Page ${page.slug} does not link back to itself in the pages list.`);
+  const base = pageHtml.match(/<base href="([^"]+)"/)?.[1];
+  const stylesheet = pageHtml.match(/<link rel="stylesheet" href="([^"]+)"/)?.[1];
+  const home = pageHtml.match(/class="home-button" href="([^"]+)"/)?.[1];
+  const link = pageHtml.match(new RegExp(`<a href="([^"]+)" data-page-slug="${page.slug}"`))?.[1];
+  if (!base || !stylesheet || !home || !link) throw new Error(`Page ${page.slug} is missing its base, stylesheet, home button or nav link.`);
+  // Resolve the way a browser does: against <base>, not the document URL. A
+  // stray ../ here silently 404s the whole stylesheet.
+  const at = (href) => new URL(href, new URL(base, `https://site.test/${page.slug}/`)).pathname;
+  if (at(stylesheet) !== "/site.css") throw new Error(`Page ${page.slug} resolves its stylesheet to ${at(stylesheet)} instead of /site.css.`);
+  if (at(home) !== "/") throw new Error(`Page ${page.slug} sends its home button to ${at(home)} instead of /.`);
+  if (at(link) !== `/${page.slug}/`) throw new Error(`Page ${page.slug} links itself to ${at(link)} instead of /${page.slug}/.`);
 }
 if (pages.length && !html.includes('class="site-pages"')) throw new Error("Home page is missing the pages list.");
 const required = [
