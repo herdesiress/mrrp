@@ -1,9 +1,18 @@
 import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { renderMarkdownPage } from "./markdown.mjs";
+import { defaultSiteSettings, normalizeSiteSettings, validSiteSettings } from "./site-settings.mjs";
 
 const markdown = await readFile("content.md", "utf8");
 const title = (await readFile("site-title.txt", "utf8")).trim() || "home";
+let settings = defaultSiteSettings();
+try {
+  settings = JSON.parse(await readFile("site-settings.json", "utf8"));
+} catch (error) {
+  if (error.code !== "ENOENT") throw error;
+}
+if (!validSiteSettings(settings)) throw new Error("site-settings.json contains invalid site settings.");
+settings = normalizeSiteSettings(settings);
 await rm("dist", { recursive: true, force: true });
 await mkdir("dist", { recursive: true });
 await mkdir("dist/media", { recursive: true });
@@ -13,4 +22,4 @@ for (const filename of await readdir("public/media")) {
   if (filename === ".gitkeep") continue;
   await cp(resolve("public/media", filename), resolve("dist/media", filename));
 }
-await writeFile("dist/index.html", renderMarkdownPage(markdown, "./site.css", "./", "./site.js", title));
+await writeFile("dist/index.html", renderMarkdownPage(markdown, "./site.css", "./", "./site.js", title, settings, new Date().toISOString()));

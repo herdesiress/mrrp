@@ -12,9 +12,17 @@
     <header class="toolbar">
       <input id="site-title" type="text" aria-label="Page name and browser tab title" placeholder="tab title" maxlength="120">
       <button id="toggle-markdown" type="button" aria-expanded="false">markdown</button>
+      <button id="edit-source" type="button">source</button>
       <button id="toggle-outlines" type="button" aria-pressed="false">outlines</button>
+      <button id="open-settings" type="button" aria-label="settings" title="settings">
+        <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Zm9 4.7v-2.4l-2.2-.5a7.1 7.1 0 0 0-.8-1.9l1.2-1.9-1.7-1.7-1.9 1.2a7.1 7.1 0 0 0-1.9-.8L13.2 3h-2.4l-.5 2.2a7.1 7.1 0 0 0-1.9.8L6.5 4.8 4.8 6.5 6 8.4a7.1 7.1 0 0 0-.8 1.9L3 10.8v2.4l2.2.5a7.1 7.1 0 0 0 .8 1.9l-1.2 1.9 1.7 1.7 1.9-1.2a7.1 7.1 0 0 0 1.9.8l.5 2.2h2.4l.5-2.2a7.1 7.1 0 0 0 1.9-.8l1.9 1.2 1.7-1.7-1.2-1.9a7.1 7.1 0 0 0 .8-1.9l2.2-.5Z"/></svg>
+      </button>
+      <button id="toggle-region" type="button" aria-pressed="false">region</button>
       <button id="save" type="button" disabled>save &amp; push</button>
+      <button id="toggle-version-name" type="button" aria-label="Name next version" aria-pressed="false" title="Name next version">☆</button>
+      <input id="version-name" type="text" maxlength="72" aria-label="Version name" placeholder="version name" hidden>
       <button id="open-versions" type="button">versions</button>
+      <button id="recover-draft" type="button" hidden>recover draft</button>
       <span id="status" role="status" aria-live="polite"></span>
     </header>
     <iframe id="site" src="./preview/" title="Edit your site"></iframe>
@@ -29,12 +37,116 @@
       <p><code>`code`</code></p>
       <p><code>---</code></p>
     </aside>
+    <div id="drop-overlay" class="drop-overlay" aria-hidden="true">drop to add media at the cursor</div>
     <dialog id="versions-dialog">
       <section class="versions">
         <h2>Versions</h2>
         <ol id="version-list" class="version-list"></ol>
         <div class="actions">
           <button id="close-versions" type="button">close</button>
+        </div>
+      </section>
+    </dialog>
+    <aside id="text-colors" class="text-colors">
+      <button id="toggle-text-colors" type="button" aria-expanded="false">text color</button>
+      <div id="text-color-panel" class="text-color-panel" hidden>
+        <div class="color-presets" aria-label="Preset text colors">
+          <button type="button" data-color="#dedede" aria-label="Bone"></button>
+          <button type="button" data-color="#8db4ff" aria-label="Blue"></button>
+          <button type="button" data-color="#a8c1a8" aria-label="Sage"></button>
+          <button type="button" data-color="#f2b5b5" aria-label="Rose"></button>
+          <button type="button" data-color="#e6c27a" aria-label="Gold"></button>
+          <button type="button" data-color="#c1a8e8" aria-label="Lilac"></button>
+          <button type="button" data-color="#82c7c1" aria-label="Teal"></button>
+        </div>
+        <label for="text-color-wheel">custom color</label>
+        <input id="text-color-wheel" type="color" value="#8db4ff">
+      </div>
+    </aside>
+    <dialog id="settings-dialog">
+      <section class="settings">
+        <nav class="settings-categories" aria-label="Settings categories">
+          <button type="button" data-category="general" aria-pressed="true">general</button>
+          <button type="button" data-category="site" aria-pressed="false">site</button>
+          <button type="button" data-category="misc" aria-pressed="false">misc</button>
+        </nav>
+        <div class="settings-content" data-settings="general">
+          <h2>General</h2>
+          <label><input id="setting-outlines" type="checkbox"> outlines</label>
+          <label><input id="setting-markdown" type="checkbox"> markdown reference</label>
+        </div>
+        <div class="settings-content" data-settings="site" hidden>
+          <h2>Site features</h2>
+          <label><input id="feature-view-count" type="checkbox"> visitor count</label>
+          <label for="view-counter-endpoint">counter endpoint</label>
+          <input id="view-counter-endpoint" type="url" autocomplete="off" placeholder="https://…workers.dev/">
+          <p>Deploy the included Cloudflare Worker once, then paste its URL here. The worker stores the total; no secret goes in the site.</p>
+          <label><input id="feature-updated" type="checkbox"> last updated</label>
+          <label><input id="feature-clocks" type="checkbox"> Melbourne and local clocks</label>
+          <label><input id="feature-theme" type="checkbox"> light/dark toggle</label>
+          <label><input id="feature-back-top" type="checkbox"> back-to-top after scrolling</label>
+          <label><input id="feature-spotify" type="checkbox"> listening card</label>
+          <label for="spotify-endpoint">public Spotify status endpoint</label>
+          <input id="spotify-endpoint" type="url" autocomplete="off" placeholder="HTTPS endpoint /now-playing">
+          <label for="spotify-placement">listening card position</label>
+          <select id="spotify-placement">
+            <option value="fixed-bottom-right">pinned bottom right</option>
+            <option value="fixed-bottom-left">pinned bottom left</option>
+            <option value="top">under the heading</option>
+            <option value="after-intro">after the introduction</option>
+            <option value="bottom">bottom of the page</option>
+          </select>
+          <p>The site already has its own icon; no favicon URL is needed. For the public listening card, use the Worker URL ending in <code>/now-playing</code>; configure its matching relay key in DiscSpot → Settings → Connections. The editor cannot read DiscSpot on your Mac from GitHub Pages directly.</p>
+        </div>
+        <div class="settings-content" data-settings="misc" hidden>
+          <h2>Misc</h2>
+          <label for="motif-symbol">floating text</label>
+          <input id="motif-symbol" type="text" maxlength="32" autocomplete="off" placeholder="⚞^. .^⚟">
+          <label for="motif-count">floating text count <output id="motif-count-value">3</output></label>
+          <input id="motif-count" type="range" min="1" max="20" step="1" value="3">
+          <label><input id="motif-enabled" type="checkbox"> show it on the site</label>
+        </div>
+        <div class="actions">
+          <button id="apply-settings" type="button">save settings</button>
+          <button id="close-settings" type="button">close</button>
+        </div>
+      </section>
+    </dialog>
+    <dialog id="source-dialog">
+      <section class="markdown-source">
+        <h2>Edit Markdown source</h2>
+        <textarea id="markdown-source" rows="18" spellcheck="false" aria-label="Markdown source"></textarea>
+        <div class="actions">
+          <button id="apply-source" type="button">apply</button>
+          <button id="cancel-source" type="button">cancel</button>
+        </div>
+      </section>
+    </dialog>
+    <dialog id="push-help-dialog">
+      <section class="push-help">
+        <h2 id="push-help-title">Could not push to GitHub</h2>
+        <p id="push-help-message"></p>
+        <code id="push-help-command" tabindex="0"></code>
+        <div class="actions">
+          <button id="copy-push-command" type="button">copy command</button>
+          <button id="retry-push" type="button">retry push</button>
+          <button id="close-push-help" type="button">close</button>
+        </div>
+      </section>
+    </dialog>
+    <dialog id="region-dialog">
+      <section class="region">
+        <h2>Place in the drawn region</h2>
+        <div class="region-kinds">
+          <button id="region-image" type="button">image</button>
+          <button id="region-video" type="button">video</button>
+          <button id="region-ascii" type="button">ascii</button>
+        </div>
+        <input id="region-file" type="file" hidden>
+        <textarea id="region-ascii-input" rows="6" spellcheck="false" placeholder="paste ascii art here" hidden></textarea>
+        <div class="actions">
+          <button id="region-place" type="button" hidden>place ascii</button>
+          <button id="region-cancel" type="button">cancel</button>
         </div>
       </section>
     </dialog>

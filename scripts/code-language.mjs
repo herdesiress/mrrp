@@ -20,6 +20,7 @@ export const detectCodeLanguage = (code) => {
 
 export const normalizeLanguage = (language, code) => {
   const aliases = new Map([
+    ["ascii", "ASCII"],
     ["bash", "Bash"],
     ["c", "C"],
     ["cpp", "C++"],

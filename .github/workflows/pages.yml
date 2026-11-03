@@ -26,8 +26,12 @@ jobs:
           node-version: 22
       - name: Install build dependencies
         run: npm ci
+      - name: Test site and relay
+        run: node --test scripts/*.test.mjs workers/view-counter/index.test.mjs
       - name: Build public site
         run: node scripts/build.mjs
+      - name: Verify public artifact
+        run: node scripts/verify-public-build.mjs
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
