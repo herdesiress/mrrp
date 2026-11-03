@@ -58,7 +58,7 @@ export default {
         const result = await counter.fetch("https://counter/publish", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(snapshot)
+          body: JSON.stringify({ ...snapshot, updatedAt: Date.now() })
         });
         return jsonResponse({ status: "published" }, result.status, origin);
       }

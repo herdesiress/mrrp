@@ -98,6 +98,32 @@ test("publishes Spotify metadata only with the private relay key", async () => {
   assert.equal(Number.isFinite(current.updatedAt), true);
 });
 
+test("timestamps relay writes before forwarding them to the durable object", async () => {
+  let stored;
+  const env = {
+    SPOTIFY_PUSH_TOKEN: "push-secret",
+    VIEW_COUNTER: {
+      idFromName: () => "site",
+      get: () => ({
+        async fetch(input, init) {
+          stored = await new Request(input, init).json();
+          return Response.json({ status: "published" });
+        }
+      })
+    }
+  };
+  const response = await worker.fetch(new Request("https://counter.example/publish", {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer push-secret",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ track: null, position: 0 })
+  }), env);
+  assert.equal(response.status, 200);
+  assert.equal(Number.isFinite(stored.updatedAt), true);
+});
+
 test("rejects malformed or oversized Spotify status", async () => {
   const env = createEnvironment();
   const response = await worker.fetch(new Request("https://counter.example/publish", {
