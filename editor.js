@@ -1614,6 +1614,13 @@ motifCountInput.addEventListener("input", (event) => {
   motifCountValue.textContent = event.currentTarget.value;
   updateStatus();
 });
+motifCountInput.addEventListener("change", async () => {
+  try {
+    await renderDraft(draftPayload());
+  } catch (error) {
+    setStatus(error.message || "could not preview floating text", true);
+  }
+});
 document.querySelector("#apply-settings").addEventListener("click", applySettings);
 document.querySelector("#close-settings").addEventListener("click", () => settingsDialog.close());
 document.querySelector("#open-versions").addEventListener("click", async () => {
