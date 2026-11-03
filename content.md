@@ -4,8 +4,17 @@ top right is boring
 
 bottom left is cool
 
-top left is genuinely unbeatable
+Right side lists pages
 
 heres a cool video below
 
-![idk if i broke the bot but hes a bih now](./media/7d509474-7dd8-477a-a46b-54bf7457f727.mp4)
+![ch.mp4](./media/23bbfe52-6986-49e4-9ed9-db096b44fab5.mp4 "fit=373x295")
+
+  
+
+{{color:#ffbdf9;{{color:#dedede;{{color:#ffc7fa;am pink}}}}}}
+
+{{color:#ffbdf9;  
+}}
+
+this site is still very wip <3
