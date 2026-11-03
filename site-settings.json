@@ -18,6 +18,7 @@
     }
   },
   "games": {
-    "enabled": true
+    "enabled": true,
+    "connectFour": true
   }
 }
