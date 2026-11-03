@@ -1,7 +1,7 @@
 # hi
 
-am cat
+Look bottom right isnt that cool :3
 
-  
+ooo! even top right !
 
-![sam.mp4](./media/456c7fb6-e947-4246-917a-d561f64739f1.mp4)
+Compare my time to yours >.< mmm i track your views, i'm palantir

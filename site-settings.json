@@ -3,5 +3,18 @@
     "enabled": true,
     "symbol": ";3",
     "count": 3
+  },
+  "widgets": {
+    "viewCount": true,
+    "viewCounterEndpoint": "https://mrrp-view-counter.salvalichubizenquiries.workers.dev/",
+    "lastUpdated": true,
+    "clocks": true,
+    "themeToggle": true,
+    "backToTop": true,
+    "spotify": {
+      "enabled": true,
+      "endpoint": "https://mrrp-view-counter.salvalichubizenquiries.workers.dev/now-playing",
+      "placement": "fixed-bottom-right"
+    }
   }
 }
