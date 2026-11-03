@@ -354,6 +354,7 @@ const updateStatus = () => {
 };
 
 const publishedPayload = () => ({
+  page: currentPage,
   content: turndown.turndown(page.innerHTML),
   title: titleInput.value.trim() || "home",
   settings: { motif: siteSettings.motif, widgets: siteSettings.widgets, games: siteSettings.games }
