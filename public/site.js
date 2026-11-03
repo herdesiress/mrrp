@@ -296,6 +296,7 @@ if (connectFourBoard) {
   const centerFirst = [3, 2, 4, 1, 5, 0, 6];
   const status = document.querySelector(".connect-four-status");
   let board = Array.from({ length: rows }, () => Array(columns).fill(0));
+  const history = [];
   let gameOver = false;
   let botThinking = false;
   let botTimer;
@@ -392,6 +393,8 @@ if (connectFourBoard) {
     return bestColumn;
   };
   const renderBoard = () => {
+    const undo = document.querySelector(".game-undo");
+    if (undo) undo.disabled = !history.length;
     connectFourBoard.querySelectorAll(".connect-four-column").forEach((button) => {
       const column = Number(button.dataset.column);
       button.disabled = gameOver || botThinking || board[0][column] !== 0;
@@ -405,6 +408,16 @@ if (connectFourBoard) {
   const resetGame = () => {
     clearTimeout(botTimer);
     board = Array.from({ length: rows }, () => Array(columns).fill(0));
+    history.length = 0;
+    gameOver = false;
+    botThinking = false;
+    status.textContent = "your turn · drop a disc";
+    renderBoard();
+  };
+  const undoMove = () => {
+    if (!history.length) return;
+    clearTimeout(botTimer);
+    board = history.pop();
     gameOver = false;
     botThinking = false;
     status.textContent = "your turn · drop a disc";
@@ -414,8 +427,12 @@ if (connectFourBoard) {
     const button = event.target.closest(".connect-four-column");
     if (!button || gameOver || botThinking) return;
     const column = Number(button.dataset.column);
+    history.push(board.map((row) => row.slice()));
     const row = dropDisc(board, column, human);
-    if (row < 0) return;
+    if (row < 0) {
+      history.pop();
+      return;
+    }
     if (hasWon(board, row, column, human)) {
       gameOver = true;
       status.textContent = "you win · nice one";
@@ -447,6 +464,7 @@ if (connectFourBoard) {
       renderBoard();
     }, 240);
   });
+  document.querySelector(".game-undo")?.addEventListener("click", undoMove);
   document.querySelector(".game-reset")?.addEventListener("click", resetGame);
   renderBoard();
 }

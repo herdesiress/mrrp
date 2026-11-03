@@ -9,7 +9,12 @@ test("normalizes existing motif-only settings with visitor feature defaults", ()
   assert.equal(settings.widgets.spotify.enabled, false);
   assert.equal(settings.widgets.spotify.placement, "fixed-bottom-right");
   assert.equal(settings.games.enabled, false);
+  assert.equal(settings.games.connectFour, true);
   assert.equal(validSiteSettings(settings), true);
+  assert.deepEqual(normalizeSiteSettings({ games: { enabled: true } }).games, {
+    enabled: true,
+    connectFour: true
+  });
 });
 
 test("validates the overall games setting", () => {
@@ -17,6 +22,11 @@ test("validates the overall games setting", () => {
   settings.games.enabled = true;
   assert.equal(validSiteSettings(settings), true);
   settings.games.enabled = "yes";
+  assert.equal(validSiteSettings(settings), false);
+  settings.games.enabled = true;
+  settings.games.connectFour = false;
+  assert.equal(validSiteSettings(settings), true);
+  settings.games.connectFour = "yes";
   assert.equal(validSiteSettings(settings), false);
 });
 

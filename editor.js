@@ -208,7 +208,10 @@ const pagePayload = (payload) => ({
       symbol: payload.settings?.motif?.symbol ?? "",
       count: payload.settings?.motif?.count ?? 3
     },
-    games: { enabled: Boolean(payload.settings?.games?.enabled) },
+    games: {
+      enabled: Boolean(payload.settings?.games?.enabled),
+      connectFour: payload.settings?.games?.connectFour !== false
+    },
     widgets: {
       ...defaultWidgets,
       ...payload.settings?.widgets,
@@ -224,7 +227,8 @@ const isValidDraft = (draft) => draft && typeof draft.content === "string" && ty
   (draft.settings.motif.count === undefined ||
     (Number.isInteger(draft.settings.motif.count) && draft.settings.motif.count >= 1 && draft.settings.motif.count <= 20)) &&
   (draft.settings.games === undefined ||
-    (draft.settings.games && typeof draft.settings.games.enabled === "boolean")) &&
+    (draft.settings.games && typeof draft.settings.games.enabled === "boolean" &&
+      (draft.settings.games.connectFour === undefined || typeof draft.settings.games.connectFour === "boolean"))) &&
   (!draft.settings.widgets || ["viewCount", "lastUpdated", "clocks", "themeToggle", "backToTop"].every((key) => typeof draft.settings.widgets[key] === "boolean")) &&
   (draft.versionNameEnabled === undefined || typeof draft.versionNameEnabled === "boolean") &&
   (draft.versionName === undefined || typeof draft.versionName === "string" && draft.versionName.length <= 72);
@@ -303,6 +307,7 @@ const syncSettingsForm = () => {
   document.querySelector("#spotify-endpoint").value = siteSettings.widgets.spotify.endpoint;
   document.querySelector("#spotify-placement").value = siteSettings.widgets.spotify.placement;
   document.querySelector("#games-enabled").checked = Boolean(siteSettings.games?.enabled);
+  document.querySelector("#game-connect-four-enabled").checked = siteSettings.games?.connectFour !== false;
 };
 
 const applySettings = async () => {
@@ -316,7 +321,10 @@ const applySettings = async () => {
     count: Number(motifCountInput.value)
   };
   siteSettings.widgets = siteWidgetsFromForm();
-  siteSettings.games = { enabled: document.querySelector("#games-enabled").checked };
+  siteSettings.games = {
+    enabled: document.querySelector("#games-enabled").checked,
+    connectFour: document.querySelector("#game-connect-four-enabled").checked
+  };
   page.classList.toggle("editable-outlines", siteSettings.ui.outlines);
   document.querySelector("#toggle-outlines").setAttribute("aria-pressed", String(siteSettings.ui.outlines));
   markdownReference.hidden = !siteSettings.ui.markdown;
@@ -565,9 +573,8 @@ const save = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...payload, content: markdown, versionName: namesVersion ? versionName : "" })
     }));
-    const state = await readResponse(await fetch("./state", { cache: "no-store"     }));
-    baseRevision = state.revision;
-    lastPushed = pagePayload(state);
+    baseRevision = result.revision;
+    lastPushed = pagePayload({ ...payload, content: markdown });
     localStorage.removeItem(draftKey);
     localStorage.removeItem(recoveryKey);
     recoveryDraft = null;
@@ -575,6 +582,9 @@ const save = async () => {
     versionNameInput.value = "";
     versionNameInput.hidden = true;
     versionNameToggle.setAttribute("aria-pressed", "false");
+    const loaded = new Promise((resolve) => site.addEventListener("load", resolve, { once: true }));
+    site.contentWindow.location.reload();
+    await loaded;
     setStatus(result.message || "saved and pushed to main");
   } catch (error) {
     showPushHelp(error);
@@ -1600,15 +1610,20 @@ document.querySelector("#spotify-placement").addEventListener("change", async ()
     setStatus(error.message || "could not preview listening card position", true);
   }
 });
-document.querySelector("#games-enabled").addEventListener("change", async (event) => {
-  siteSettings.games = { enabled: event.currentTarget.checked };
-  updateStatus();
-  persistDraft();
-  try {
-    await renderDraft(draftPayload());
-  } catch (error) {
-    setStatus(error.message || "could not preview games setting", true);
-  }
+document.querySelectorAll('[data-settings="games"] input[type="checkbox"]').forEach((input) => {
+  input.addEventListener("change", async () => {
+    siteSettings.games = {
+      enabled: document.querySelector("#games-enabled").checked,
+      connectFour: document.querySelector("#game-connect-four-enabled").checked
+    };
+    updateStatus();
+    persistDraft();
+    try {
+      await renderDraft(draftPayload());
+    } catch (error) {
+      setStatus(error.message || "could not preview games setting", true);
+    }
+  });
 });
 document.querySelector("#setting-outlines").addEventListener("change", (event) => {
   siteSettings.ui.outlines = event.currentTarget.checked;

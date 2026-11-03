@@ -9,7 +9,7 @@ export const defaultSiteSettings = () => ({
     backToTop: true,
     spotify: { enabled: false, endpoint: "", placement: "fixed-bottom-right" }
   },
-  games: { enabled: false }
+  games: { enabled: false, connectFour: true }
 });
 
 export const normalizeSiteSettings = (settings = {}) => {
@@ -46,7 +46,8 @@ export const validSiteSettings = (settings) => {
     return false;
   }
   if (settings.games !== undefined &&
-    (!settings.games || typeof settings.games !== "object" || typeof settings.games.enabled !== "boolean")) return false;
+    (!settings.games || typeof settings.games !== "object" || typeof settings.games.enabled !== "boolean" ||
+      settings.games.connectFour !== undefined && typeof settings.games.connectFour !== "boolean")) return false;
   if (settings.widgets === undefined) return true;
   const { widgets } = settings;
   return widgets && typeof widgets === "object" &&

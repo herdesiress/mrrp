@@ -144,6 +144,15 @@ body {
   color: var(--text);
 }
 
+.site-version {
+  color: var(--muted);
+}
+
+.site-version code {
+  color: var(--text);
+  font: inherit;
+}
+
 .spotify-card {
   position: relative;
   display: grid;
@@ -306,6 +315,22 @@ body:has(.spotify-reopen:not([hidden]):not([data-placement="fixed-bottom-left"])
   animation: game-panel-in 180ms ease-out;
 }
 
+.game-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.4rem 0.6rem 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--muted) 24%, transparent);
+}
+
+.game-tab {
+  border-radius: 0;
+  color: var(--muted);
+}
+
+.game-tab[aria-selected="true"] {
+  color: var(--text);
+}
+
 .game-card {
   display: grid;
   gap: 0.65rem;
@@ -320,6 +345,15 @@ body:has(.spotify-reopen:not([hidden]):not([data-placement="fixed-bottom-left"])
 }
 
 .game-reset {
+  font-size: 0.72rem;
+}
+
+.game-heading > div {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.game-undo {
   font-size: 0.72rem;
 }
 

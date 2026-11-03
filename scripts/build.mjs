@@ -22,4 +22,5 @@ for (const filename of await readdir("public/media")) {
   if (filename === ".gitkeep") continue;
   await cp(resolve("public/media", filename), resolve("dist/media", filename));
 }
-await writeFile("dist/index.html", renderMarkdownPage(markdown, "./site.css", "./", "./site.js", title, settings, new Date().toISOString()));
+const version = process.env.GITHUB_SHA?.slice(0, 7) || "local";
+await writeFile("dist/index.html", renderMarkdownPage(markdown, "./site.css", "./", "./site.js", title, settings, new Date().toISOString(), version));

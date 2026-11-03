@@ -84,11 +84,19 @@ test("renders enabled visitor tools with an inline favicon and without editor co
   assert.match(html, /my time: <time data-clock="melbourne">--:--<\/time> <span>\(Melbourne, Victoria\)<\/span>/);
   assert.match(html, /your time: <time data-clock="local">--:--<\/time>/);
   assert.match(html, /class="theme-toggle"/);
+  assert.match(html, /class="site-version">version: <code>unknown<\/code><\/span>/);
   assert.match(html, /class="back-to-top"/);
   assert.match(html, /class="site-tools-close"[^>]*>×<\/button>/);
   assert.match(html, /class="site-tools-reopen"[^>]*hidden>site info<\/button>/);
   assert.match(html, /rel="icon" href="data:image\/svg\+xml/);
   assert.doesNotMatch(html, /editor\.html/);
+});
+
+test("renders the published version directly below the theme toggle", () => {
+  const html = renderMarkdownPage("# hi", "./site.css", "./", "./site.js", "title", {
+    widgets: { themeToggle: true }
+  }, "2026-11-03T00:00:00.000Z", "abc1234");
+  assert.match(html, /class="theme-toggle"[^>]*>light<\/button><span class="site-version">version: <code>abc1234<\/code><\/span>/);
 });
 
 test("pins the listening card in the lower-right corner", () => {
@@ -135,8 +143,14 @@ test("renders optional games closed with the Connect Four board and visitor togg
   assert.match(enabled, /aria-label="Open games" title="games" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6\.5 8\.25h11/);
   assert.match(enabled, /<circle cx="16" cy="11\.5" r="\.75"\/><circle cx="18\.5" cy="13\.5" r="\.75"\/><\/svg>/);
   assert.match(enabled, /class="games-panel" hidden/);
+  assert.match(enabled, /role="tab" id="game-tab-connect-four" aria-selected="true"/);
+  assert.match(enabled, /class="game-undo" type="button" disabled>undo<\/button>/);
   assert.equal((enabled.match(/class="connect-four-column"/g) ?? []).length, 7);
   assert.match(enabled, /your turn · drop a disc/);
+  const gameDisabled = renderMarkdownPage("# hi", "./site.css", "./", "./site.js", "title", {
+    games: { enabled: true, connectFour: false }
+  });
+  assert.doesNotMatch(gameDisabled, /games-toggle|connect-four-board/);
 });
 
 test("versions public asset URLs when rendering the page", () => {

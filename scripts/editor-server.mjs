@@ -102,6 +102,7 @@ const readSiteState = async () => {
     updatedAt: Math.max(Number(commitTime || 0) * 1000, contentStat.mtimeMs, titleStat.mtimeMs, settingsStat.mtimeMs)
   };
 };
+const readSiteVersion = async () => (await git("rev-parse", "--short=7", "HEAD")).trim();
 
 const mediaFilePattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(?:png|jpe?g|gif|webp|mp3|m4a|aac|wav|ogg|flac|mp4|webm|ogv|mov)$/i;
 const readUploadedMedia = async () => {
@@ -172,6 +173,7 @@ const versions = async () => {
   }) : [];
 };
 
+let lastPushedHead = null;
 const publishSite = async (subject = "Update personal site") => {
   await git("add", "--", "content.md", "site-title.txt", "site-settings.json", "public/media");
   const changes = await git("diff", "--cached", "--quiet", "--", "content.md", "site-title.txt", "site-settings.json", "public/media")
@@ -181,8 +183,15 @@ const publishSite = async (subject = "Update personal site") => {
       throw error;
     });
   if (changes) await git("commit", "--only", "-m", subject, "--", "content.md", "site-title.txt", "site-settings.json", "public/media");
-  await push("-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "push", "origin", "HEAD:main");
-  return (await versions())[0] ?? null;
+  const output = await git("log", "-1", "--format=%H%x09%cs%x09%s", "--", "content.md", "site-title.txt", "site-settings.json", "public/media");
+  const [sha, date, ...subjectParts] = output.split("\t");
+  const version = sha ? { sha, date, subject: subjectParts.join("\t") } : null;
+  const head = await git("rev-parse", "HEAD");
+  if (head !== lastPushedHead) {
+    await push("-c", "core.compression=0", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "push", "origin", "HEAD:main");
+    lastPushedHead = head;
+  }
+  return version;
 };
 
 const sendFile = async (response, path) => {
@@ -222,7 +231,8 @@ const server = createServer(async (request, response) => {
         return;
       }
       const state = await readSiteState();
-      const html = renderMarkdownPage(draft.content, "/preview/site.css", "/preview/", "/preview/site.js", draft.title, draft.settings, new Date(state.updatedAt).toISOString());
+      const version = await readSiteVersion();
+      const html = renderMarkdownPage(draft.content, "/preview/site.css", "/preview/", "/preview/site.js", draft.title, draft.settings, new Date(state.updatedAt).toISOString(), version);
       const id = randomUUID();
       renderedDrafts.set(id, html);
       if (renderedDrafts.size > 8) renderedDrafts.delete(renderedDrafts.keys().next().value);
@@ -266,8 +276,14 @@ const server = createServer(async (request, response) => {
       await cleanRemovedMedia(previousMarkdown, markdown);
       try {
         const version = await publishSite(payload.versionName?.trim() || "Update personal site");
+        const savedPayload = {
+          content: `${markdown}\n`,
+          title,
+          settings: normalizeSiteSettings(payload.settings)
+        };
+        const revision = createHash("sha256").update(JSON.stringify(savedPayload)).digest("hex");
         response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
-          .end(JSON.stringify({ version, message: "saved and pushed to main" }));
+          .end(JSON.stringify({ version, revision, message: "saved and pushed to main" }));
       } catch (error) {
         response.writeHead(502, { "Content-Type": "application/json; charset=utf-8" })
           .end(JSON.stringify({ error: pushFailure(error) }));
@@ -380,7 +396,8 @@ const server = createServer(async (request, response) => {
       const title = (await readFile(titlePath, "utf8")).trim() || "home";
       const settings = await readSettings();
       const state = await readSiteState();
-      const html = renderMarkdownPage(markdown, "/preview/site.css", "/preview/", "/preview/site.js", title, settings, new Date(state.updatedAt).toISOString());
+      const version = await readSiteVersion();
+      const html = renderMarkdownPage(markdown, "/preview/site.css", "/preview/", "/preview/site.js", title, settings, new Date(state.updatedAt).toISOString(), version);
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store"

@@ -187,7 +187,7 @@ export const titleFromMarkdown = (source) => {
   return heading ? heading[1].replace(/[*_`~]/g, "") : "home";
 };
 
-const widgetMarkup = (settings, updatedAt) => {
+const widgetMarkup = (settings, updatedAt, version) => {
   const { widgets } = normalizeSiteSettings(settings);
   const tools = [];
   if (widgets.viewCount) {
@@ -207,6 +207,7 @@ const widgetMarkup = (settings, updatedAt) => {
     tools.push('<span class="site-clocks"><span class="site-clock">my time: <time data-clock="melbourne">--:--</time> <span>(Melbourne, Victoria)</span></span><span class="site-clock">your time: <time data-clock="local">--:--</time></span></span>');
   }
   if (widgets.themeToggle) tools.push('<button class="theme-toggle" type="button" aria-label="Switch to light theme">light</button>');
+  tools.push(`<span class="site-version">version: <code>${escapeHtml(version || "unknown")}</code></span>`);
   const header = tools.length ? `<header class="site-tools" aria-label="Site information"><button class="site-tools-close" type="button" aria-label="Hide site information">×</button><div class="site-tools-content">${tools.join("")}</div></header><button class="site-tools-reopen" type="button" aria-expanded="true" hidden>site info</button>` : "";
   const backToTop = widgets.backToTop ? '<button class="back-to-top" type="button" aria-hidden="true" tabindex="-1">back to top</button>' : "";
   return `${header}${backToTop}`;
@@ -219,14 +220,15 @@ const spotifyMarkup = (settings) => {
 };
 
 const gamesMarkup = (settings) => {
-  if (!normalizeSiteSettings(settings).games.enabled) return "";
+  const games = normalizeSiteSettings(settings).games;
+  if (!games.enabled || !games.connectFour) return "";
   const columns = Array.from({ length: 7 }, (_, column) =>
     `<button class="connect-four-column" type="button" data-column="${column}" aria-label="drop a disc in column ${column + 1}">${Array.from({ length: 6 }, () => '<span class="connect-four-cell"></span>').join("")}</button>`
   ).join("");
-  return `<button class="games-toggle" type="button" aria-label="Open games" title="games" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6.5 8.25h11a4.15 4.15 0 0 1 3.95 5.45l-.6 2a2 2 0 0 1-3.55.75L14.75 14h-5.5L6.7 16.45a2 2 0 0 1-3.55-.75l-.6-2A4.15 4.15 0 0 1 6.5 8.25Z"/><path d="M7.5 10.5v4m-2-2h4"/><circle cx="16" cy="11.5" r=".75"/><circle cx="18.5" cy="13.5" r=".75"/></svg></button><aside class="games-panel" hidden aria-label="Games"><div class="game-card"><div class="game-heading"><span>connect four</span><button class="game-reset" type="button">new game</button></div><div class="connect-four-board" role="group" aria-label="Connect Four board">${columns}</div><p class="connect-four-status" role="status" aria-live="polite">your turn · drop a disc</p></div></aside>`;
+  return `<button class="games-toggle" type="button" aria-label="Open games" title="games" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6.5 8.25h11a4.15 4.15 0 0 1 3.95 5.45l-.6 2a2 2 0 0 1-3.55.75L14.75 14h-5.5L6.7 16.45a2 2 0 0 1-3.55-.75l-.6-2A4.15 4.15 0 0 1 6.5 8.25Z"/><path d="M7.5 10.5v4m-2-2h4"/><circle cx="16" cy="11.5" r=".75"/><circle cx="18.5" cy="13.5" r=".75"/></svg></button><aside class="games-panel" hidden aria-label="Games"><nav class="game-tabs" role="tablist" aria-label="Games"><button class="game-tab" type="button" role="tab" id="game-tab-connect-four" aria-selected="true" aria-controls="game-panel-connect-four">connect four</button></nav><section class="game-card" id="game-panel-connect-four" role="tabpanel" aria-labelledby="game-tab-connect-four"><div class="game-heading"><span>connect four</span><div><button class="game-undo" type="button" disabled>undo</button><button class="game-reset" type="button">new game</button></div></div><div class="connect-four-board" role="group" aria-label="Connect Four board">${columns}</div><p class="connect-four-status" role="status" aria-live="polite">your turn · drop a disc</p></section></aside>`;
 };
 
-export const renderMarkdownPage = (source, stylesheet = "./site.css", baseHref = "./", script = "./site.js", pageTitle, settings = {}, updatedAt = new Date().toISOString()) => {
+export const renderMarkdownPage = (source, stylesheet = "./site.css", baseHref = "./", script = "./site.js", pageTitle, settings = {}, updatedAt = new Date().toISOString(), version = "unknown") => {
   const siteSettings = normalizeSiteSettings(settings);
   const title = pageTitle ?? titleFromMarkdown(source);
   let html = markdown.parse(source);
@@ -261,7 +263,7 @@ export const renderMarkdownPage = (source, stylesheet = "./site.css", baseHref =
     <script src="${escapeHtml(versionedAsset(script))}" defer></script>
   </head>
   <body>
-    ${widgetMarkup(siteSettings, updatedAt)}
+    ${widgetMarkup(siteSettings, updatedAt, version)}
     ${games}
     ${motif}
     ${pinnedSpotify}
