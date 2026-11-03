@@ -18,7 +18,7 @@
     }
   },
   "games": {
-    "enabled": true,
+    "enabled": false,
     "connectFour": true
   }
 }
