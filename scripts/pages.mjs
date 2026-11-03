@@ -5,6 +5,7 @@ export const pagesManifest = "pages.json";
 export const pagesDirectory = "pages";
 export const validPageSlug = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const maxPages = 60;
+const maxCategories = 40;
 
 export const slugifyPage = (title, fallback = "page") => {
   const slug = String(title ?? "")
@@ -19,7 +20,9 @@ export const slugifyPage = (title, fallback = "page") => {
 
 const cleanText = (value, limit) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, limit);
 
-export const normalizePages = (value) => {
+// Pages carry their category; categories carry their own order. Both orders are
+// independent so moving a category never reshuffles the pages inside it.
+export const normalizePageManifest = (value) => {
   const list = Array.isArray(value) ? value : Array.isArray(value?.pages) ? value.pages : [];
   const seen = new Set();
   const pages = [];
@@ -33,21 +36,34 @@ export const normalizePages = (value) => {
     pages.push(category ? { slug, title, category } : { slug, title });
     if (pages.length >= maxPages) break;
   }
-  return pages;
+
+  const used = new Set(pages.map((page) => page.category).filter(Boolean));
+  const requested = (Array.isArray(value?.categories) ? value.categories : [])
+    .map((category) => cleanText(category, 40))
+    .filter((category) => category && used.has(category));
+  const categories = [...new Set(requested)];
+  for (const page of pages) {
+    if (page.category && !categories.includes(page.category)) categories.push(page.category);
+  }
+  return { categories: categories.slice(0, maxCategories), pages };
 };
 
-export const readPages = async (root) => {
+export const normalizePages = (value) => normalizePageManifest(value).pages;
+
+export const readPageManifest = async (root) => {
   try {
-    return normalizePages(JSON.parse(await readFile(resolve(root, pagesManifest), "utf8")));
+    return normalizePageManifest(JSON.parse(await readFile(resolve(root, pagesManifest), "utf8")));
   } catch (error) {
-    if (error.code === "ENOENT") return [];
+    if (error.code === "ENOENT") return { categories: [], pages: [] };
     throw error;
   }
 };
 
-export const writePages = async (root, pages) => {
-  const normalized = normalizePages(pages);
-  await writeFile(resolve(root, pagesManifest), `${JSON.stringify({ pages: normalized }, null, 2)}\n`);
+export const readPages = async (root) => (await readPageManifest(root)).pages;
+
+export const writePages = async (root, pages, categories = []) => {
+  const normalized = normalizePageManifest({ categories, pages });
+  await writeFile(resolve(root, pagesManifest), `${JSON.stringify(normalized, null, 2)}\n`);
   return normalized;
 };
 
@@ -93,17 +109,28 @@ const escapeHtml = (value) => String(value)
 
 const homeIcon = '<svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.6 12 3.8l8.5 6.8"/><path d="M5.8 9.4V20h12.4V9.4"/><path d="M10 20v-5.2h4V20"/></svg>';
 
-// The home button is kept separate from the pages box: it belongs to the page
-// itself, not to the pinned sidebar, so it keeps its corner on every width.
-// Everything here is relative to the site root, which is what <base> points at
-// on both the home page (./) and inner pages (../). Adding another ../ would
-// resolve against the base and climb one level too far.
-export const renderSiteNavigation = ({ pages = [], isHome = true } = {}) => {
-  const links = pages.map((page) => {
-    const category = page.category ? ` data-category="${escapeHtml(page.category)}"` : "";
-    return `<a href="./${escapeHtml(page.slug)}/" data-page-slug="${escapeHtml(page.slug)}"${category}>${escapeHtml(page.title)}</a>`;
-  }).join("");
+const pageLink = (page) =>
+  `<a href="./${escapeHtml(page.slug)}/" data-page-slug="${escapeHtml(page.slug)}">${escapeHtml(page.title)}</a>`;
+
+// Pages are grouped by category and stacked, one link per line. Uncategorised
+// pages come after the named groups.
+export const renderSiteNavigation = ({ pages = [], categories = [], isHome = true } = {}) => {
+  const groups = [];
+  for (const category of categories) {
+    const members = pages.filter((page) => page.category === category);
+    if (members.length) groups.push({ category, members });
+  }
+  const loose = pages.filter((page) => !page.category || !categories.includes(page.category));
+  if (loose.length) groups.push({ category: "", members: loose });
+
   const home = isHome ? "" : `<a class="home-button" href="./" data-page-slug="home" aria-label="Back to home" title="home">${homeIcon}</a>`;
-  const box = links ? `<nav class="site-pages" aria-label="Pages"><span class="site-pages-heading">pages</span>${links}</nav>` : "";
-  return { home, pages: box };
+  if (!groups.length) return { home, pages: "" };
+  const body = groups.map(({ category, members }) => {
+    const heading = category ? `<span class="site-pages-category">${escapeHtml(category)}</span>` : "";
+    return `<div class="site-pages-group">${heading}${members.map(pageLink).join("")}</div>`;
+  }).join("");
+  return {
+    home,
+    pages: `<nav class="site-pages" aria-label="Pages"><span class="site-pages-heading">pages</span>${body}</nav>`
+  };
 };

@@ -1885,32 +1885,88 @@ const pageRow = (entry, isCurrent, index, total) => {
 };
 
 let currentPages = [];
+let currentCategories = [];
 
+const reloadAfterOrder = async (message) => {
+  persistDraft();
+  draftRestorationStarted = false;
+  draftRestorationRunning = false;
+  const loaded = new Promise((resolve) => site.addEventListener("load", resolve, { once: true }));
+  site.src = previewUrl();
+  await loaded;
+  await loadPages();
+  setStatus(message);
+};
+
+// Moving a page only swaps it with its neighbour inside the same category.
 const movePage = async (slug, delta) => {
   if (pagesBusy) return;
-  const order = currentPages.map((entry) => entry.slug);
-  const index = order.indexOf(slug);
+  const entry = currentPages.find((page) => page.slug === slug);
+  if (!entry) return;
+  const category = entry.category ?? "";
+  const group = currentPages.filter((page) => (page.category ?? "") === category);
+  const index = group.indexOf(entry);
   const target = index + delta;
-  if (index < 0 || target < 0 || target >= order.length) return;
-  [order[index], order[target]] = [order[target], order[index]];
+  if (index < 0 || target < 0 || target >= group.length) return;
+  const neighbour = group[target];
+  const order = currentPages.map((page) => page.slug);
+  const from = order.indexOf(entry.slug);
+  const to = order.indexOf(neighbour.slug);
+  [order[from], order[to]] = [order[to], order[from]];
   try {
     await pagesRequest("PUT", { slugs: order }, "./pages/order");
-    persistDraft();
-    draftRestorationStarted = false;
-    draftRestorationRunning = false;
-    const loaded = new Promise((resolve) => site.addEventListener("load", resolve, { once: true }));
-    site.src = previewUrl();
-    await loaded;
-    await loadPages();
-    setStatus("page order saved");
+    await reloadAfterOrder("page order saved — save & push to publish it");
   } catch (error) {
     setStatus(error.message || "could not reorder pages", true);
   }
 };
 
+const moveCategory = async (category, delta) => {
+  if (pagesBusy) return;
+  const order = [...currentCategories];
+  const index = order.indexOf(category);
+  const target = index + delta;
+  if (index < 0 || target < 0 || target >= order.length) return;
+  [order[index], order[target]] = [order[target], order[index]];
+  try {
+    await pagesRequest("PUT", { categories: order }, "./pages/order");
+    await reloadAfterOrder("category order saved — save & push to publish it");
+  } catch (error) {
+    setStatus(error.message || "could not reorder categories", true);
+  }
+};
+
+const categoryRow = (category, index, total) => {
+  const item = document.createElement("li");
+  item.className = "page-category-row";
+  const name = document.createElement("span");
+  name.className = "page-category-name";
+  name.textContent = category || "no category";
+  const actions = document.createElement("div");
+  actions.className = "page-actions";
+  if (category) {
+    const up = document.createElement("button");
+    up.type = "button";
+    up.textContent = "↑";
+    up.setAttribute("aria-label", `Move category ${category} up`);
+    up.disabled = index === 0;
+    up.addEventListener("click", () => moveCategory(category, -1));
+    const down = document.createElement("button");
+    down.type = "button";
+    down.textContent = "↓";
+    down.setAttribute("aria-label", `Move category ${category} down`);
+    down.disabled = index === total - 1;
+    down.addEventListener("click", () => moveCategory(category, 1));
+    actions.append(up, down);
+  }
+  item.append(name, actions);
+  return item;
+};
+
 const loadPages = async () => {
   const result = await pagesRequest("GET");
   currentPages = result.pages;
+  currentCategories = result.categories ?? [];
   pageListElement.replaceChildren();
   const homeItem = document.createElement("li");
   homeItem.className = "page-row";
@@ -1931,8 +1987,21 @@ const loadPages = async () => {
   homeActions.append(homeOpen);
   homeItem.append(homeFields, homeActions);
   pageListElement.append(homeItem);
-  for (const [index, entry] of result.pages.entries()) {
-    pageListElement.append(pageRow(entry, entry.slug === currentPage, index, result.pages.length));
+  currentCategories = result.categories ?? [];
+  for (const [categoryIndex, category] of currentCategories.entries()) {
+    const members = currentPages.filter((page) => page.category === category);
+    if (!members.length) continue;
+    pageListElement.append(categoryRow(category, categoryIndex, currentCategories.length));
+    for (const [index, entry] of members.entries()) {
+      pageListElement.append(pageRow(entry, entry.slug === currentPage, index, members.length));
+    }
+  }
+  const loose = currentPages.filter((page) => !page.category || !currentCategories.includes(page.category));
+  if (loose.length) {
+    pageListElement.append(categoryRow("", -1, 0));
+    for (const [index, entry] of loose.entries()) {
+      pageListElement.append(pageRow(entry, entry.slug === currentPage, index, loose.length));
+    }
   }
 };
 

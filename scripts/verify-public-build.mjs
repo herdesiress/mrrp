@@ -26,6 +26,9 @@ for (const page of pages) {
   if (at(link) !== `/${page.slug}/`) throw new Error(`Page ${page.slug} links itself to ${at(link)} instead of /${page.slug}/.`);
 }
 if (pages.length && !html.includes('class="site-pages"')) throw new Error("Home page is missing the pages list.");
+if (pages.some((page) => page.category) && !html.includes('class="site-pages-category"')) {
+  throw new Error("Home page has categorised pages but renders no category headings.");
+}
 const required = [
   [settings.motif.enabled, /<div class="floating-motif" data-enabled="true"/, "floating text"],
   [settings.widgets.viewCount, /class="site-view-count"/, "view counter"],

@@ -11,7 +11,7 @@ import { getRemovedMediaFiles } from "./media-cleanup.mjs";
 import { gitPushEnvironment } from "./git-push-environment.mjs";
 import { defaultSiteSettings, normalizeSiteSettings, validSiteSettings } from "./site-settings.mjs";
 import { publishedPaths, siteAssetPaths } from "./publish-paths.mjs";
-import { pageBodyPath, readPageBody, readPages, renderSiteNavigation, slugifyPage, validPageSlug, writePages } from "./pages.mjs";
+import { pageBodyPath, readPageBody, readPageManifest, readPages, renderSiteNavigation, slugifyPage, validPageSlug, writePages } from "./pages.mjs";
 
 const execFileAsync = promisify(execFile);
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -81,7 +81,7 @@ const readSettings = async () => {
 
 const readSiteState = async (pageSlug = "home") => {
   const isHome = pageSlug === "home";
-  const pages = await readPages(root);
+  const { categories, pages } = await readPageManifest(root);
   const page = isHome ? null : pages.find((entry) => entry.slug === pageSlug);
   if (!isHome && !page) throw Object.assign(new Error("Page not found."), { statusCode: 404 });
   const [content, titleText, settings, commitTime] = await Promise.all([
@@ -105,6 +105,7 @@ const readSiteState = async (pageSlug = "home") => {
   return {
     ...payload,
     pages,
+    categories,
     revision,
     updatedAt: Math.max(Number(commitTime || 0) * 1000, ...stats.map((entry) => entry.mtimeMs))
   };
@@ -338,7 +339,7 @@ const server = createServer(async (request, response) => {
       const state = await readSiteState();
       const version = await readSiteVersion();
       const pages = state.pages;
-      const navigation = renderSiteNavigation({ pages, isHome: (draft.page ?? "home") === "home" });
+      const navigation = renderSiteNavigation({ pages, categories: state.categories, isHome: (draft.page ?? "home") === "home" });
       const html = renderMarkdownPage(draft.content, "/preview/site.css", "/preview/", "/preview/site.js", draft.title, draft.settings, new Date(state.updatedAt).toISOString(), version, navigation);
       const id = randomUUID();
       renderedDrafts.set(id, html);
@@ -485,6 +486,8 @@ const server = createServer(async (request, response) => {
       }
       return;
     }
+    // Categories and pages reorder independently: a category move never
+    // reshuffles the pages inside it.
     if (request.method === "PUT" && pathname === "/pages/order") {
       let payload;
       try {
@@ -493,18 +496,32 @@ const server = createServer(async (request, response) => {
         response.writeHead(400).end("Page order must be JSON.");
         return;
       }
-      const slugs = Array.isArray(payload.slugs) ? payload.slugs.map((slug) => String(slug)) : [];
-      const pages = await readPages(root);
-      const known = new Set(pages.map((entry) => entry.slug));
-      if (slugs.length !== pages.length || new Set(slugs).size !== slugs.length || !slugs.every((slug) => known.has(slug))) {
-        response.writeHead(400).end("Invalid page order.");
-        return;
+      const { categories, pages } = await readPageManifest(root);
+      let nextPages = pages;
+      let nextCategories = categories;
+      if (payload.slugs !== undefined) {
+        const slugs = Array.isArray(payload.slugs) ? payload.slugs.map((slug) => String(slug)) : [];
+        const known = new Set(pages.map((entry) => entry.slug));
+        if (slugs.length !== pages.length || new Set(slugs).size !== slugs.length || !slugs.every((slug) => known.has(slug))) {
+          response.writeHead(400).end("Invalid page order.");
+          return;
+        }
+        const bySlug = new Map(pages.map((entry) => [entry.slug, entry]));
+        nextPages = slugs.map((slug) => bySlug.get(slug));
       }
-      const bySlug = new Map(pages.map((entry) => [entry.slug, entry]));
-      await writePages(root, slugs.map((slug) => bySlug.get(slug)));
+      if (payload.categories !== undefined) {
+        const names = Array.isArray(payload.categories) ? payload.categories.map((name) => String(name)) : [];
+        if (names.length !== categories.length || new Set(names).size !== names.length ||
+          !names.every((name) => categories.includes(name))) {
+          response.writeHead(400).end("Invalid category order.");
+          return;
+        }
+        nextCategories = names;
+      }
+      await writePages(root, nextPages, nextCategories);
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
         .end(JSON.stringify({
-          pages: await readPages(root),
+          ...(await readPageManifest(root)),
           pending: await pagesPending(),
           message: "order saved — save & push to publish it"
         }));
@@ -513,9 +530,9 @@ const server = createServer(async (request, response) => {
     if (pathname === "/pages") {
       const cleanText = (value, limit) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, limit);
       const reply = async (extra, status = 200) => {
-        const pages = await readPages(root);
+        const manifest = await readPageManifest(root);
         response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" })
-          .end(JSON.stringify({ pages, pending: await pagesPending(), ...extra }));
+          .end(JSON.stringify({ ...manifest, pending: await pagesPending(), ...extra }));
       };
       if (request.method === "GET") {
         await reply({});
@@ -538,7 +555,7 @@ const server = createServer(async (request, response) => {
           response.writeHead(400).end("A page needs a name.");
           return;
         }
-        const pages = await readPages(root);
+        const { categories, pages } = await readPageManifest(root);
         // Creating the same page twice is a double submit, not a new page.
         const existing = pages.find((entry) => entry.title.toLowerCase() === title.toLowerCase());
         if (existing) {
@@ -554,7 +571,7 @@ const server = createServer(async (request, response) => {
         for (let suffix = 2; pages.some((entry) => entry.slug === slug); suffix += 1) slug = `${base}-${suffix}`;
         const category = cleanText(payload.category, 40);
         pages.push(category ? { slug, title, category } : { slug, title });
-        await writePages(root, pages);
+        await writePages(root, pages, categories);
         await mkdir(dirname(pageBodyPath(root, slug)), { recursive: true });
         await writeFile(pageBodyPath(root, slug), `# ${title}\n`);
         await reply({ slug, message: "page added — save & push to publish it" });
@@ -565,7 +582,7 @@ const server = createServer(async (request, response) => {
         response.writeHead(400).end("Unknown page.");
         return;
       }
-      const pages = await readPages(root);
+      const { categories, pages } = await readPageManifest(root);
       const index = pages.findIndex((entry) => entry.slug === slug);
       if (index === -1) {
         // Deleting something already gone is a success; the list just refreshes.
@@ -584,12 +601,12 @@ const server = createServer(async (request, response) => {
         }
         const category = cleanText(payload.category, 40);
         pages[index] = category ? { slug, title, category } : { slug, title };
-        await writePages(root, pages);
+        await writePages(root, pages, categories);
         await reply({ message: "page renamed — save & push to publish it" });
         return;
       }
       pages.splice(index, 1);
-      await writePages(root, pages);
+      await writePages(root, pages, categories);
       await rm(pageBodyPath(root, slug), { force: true });
       await reply({ message: "page removed — save & push to publish it" });
       return;
@@ -645,7 +662,7 @@ const server = createServer(async (request, response) => {
     if (pathname === "/preview/" || pathname === "/preview/index.html") {
       const state = await readSiteState("home");
       const version = await readSiteVersion();
-      const navigation = renderSiteNavigation({ pages: state.pages, isHome: true });
+      const navigation = renderSiteNavigation({ pages: state.pages, categories: state.categories, isHome: true });
       const html = renderMarkdownPage(state.content, "./site.css", "./", "./site.js", state.title, state.settings, new Date(state.updatedAt).toISOString(), version, navigation);
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
@@ -673,7 +690,7 @@ const server = createServer(async (request, response) => {
         throw error;
       }
       const version = await readSiteVersion();
-      const navigation = renderSiteNavigation({ pages: state.pages, isHome: false });
+      const navigation = renderSiteNavigation({ pages: state.pages, categories: state.categories, isHome: false });
       const html = renderMarkdownPage(state.content, "site.css", "../", "site.js", state.title, state.settings, new Date(state.updatedAt).toISOString(), version, navigation);
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",

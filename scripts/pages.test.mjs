@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizePages, renderSiteNavigation, slugifyPage, validPageSlug } from "./pages.mjs";
+import { normalizePageManifest, normalizePages, renderSiteNavigation, slugifyPage, validPageSlug } from "./pages.mjs";
 
 test("slugifies page names into url-safe slugs", () => {
   assert.equal(slugifyPage("About Me"), "about-me");
@@ -53,4 +53,43 @@ test("escapes page names in the nav", () => {
   const nav = renderSiteNavigation({ pages: [{ slug: "x", title: "<script>alert(1)</script>" }] });
   assert.doesNotMatch(nav.pages, /<script>/);
   assert.match(nav.pages, /&lt;script&gt;/);
+});
+
+test("keeps an explicit category order and appends new ones", () => {
+  const manifest = normalizePageManifest({
+    categories: ["life"],
+    pages: [
+      { slug: "a", title: "a", category: "misc" },
+      { slug: "b", title: "b", category: "life" },
+      { slug: "c", title: "c" }
+    ]
+  });
+  assert.deepEqual(manifest.categories, ["life", "misc"]);
+  assert.equal(manifest.pages.length, 3);
+});
+
+test("renders categories as headings with their pages underneath", () => {
+  const nav = renderSiteNavigation({
+    pages: [
+      { slug: "a", title: "a", category: "misc" },
+      { slug: "b", title: "b", category: "life" },
+      { slug: "c", title: "c", category: "misc" },
+      { slug: "d", title: "d" }
+    ],
+    categories: ["life", "misc"]
+  });
+  assert.match(nav.pages, /class="site-pages-category">life</);
+  assert.match(nav.pages, /class="site-pages-category">misc</);
+  const life = nav.pages.indexOf(">life<");
+  const misc = nav.pages.indexOf(">misc<");
+  const loose = nav.pages.indexOf('data-page-slug="d"');
+  assert.ok(life < misc, "categories follow the given order");
+  assert.ok(misc < loose, "uncategorised pages come last");
+  assert.ok(nav.pages.indexOf('data-page-slug="a"') < nav.pages.indexOf('data-page-slug="c"'), "pages keep their order inside a category");
+});
+
+test("escapes category names", () => {
+  const nav = renderSiteNavigation({ pages: [{ slug: "x", title: "x", category: "<b>" }], categories: ["<b>"] });
+  assert.doesNotMatch(nav.pages, /<b>/);
+  assert.match(nav.pages, /&lt;b&gt;/);
 });
