@@ -12,7 +12,8 @@ const required = [
   [settings.widgets.clocks, /class="site-clocks"/, "clocks"],
   [settings.widgets.themeToggle, /class="theme-toggle"/, "theme toggle"],
   [settings.widgets.backToTop, /class="back-to-top"/, "back-to-top button"],
-  [settings.widgets.spotify.enabled && Boolean(settings.widgets.spotify.endpoint), /class="spotify-card"/, "Spotify card"]
+  [settings.widgets.spotify.enabled && Boolean(settings.widgets.spotify.endpoint), /class="spotify-card"/, "Spotify card"],
+  [settings.games.enabled, /class="games-toggle"/, "games toggle"]
 ];
 
 for (const [enabled, pattern, label] of required) {

@@ -8,7 +8,16 @@ test("normalizes existing motif-only settings with visitor feature defaults", ()
   assert.equal(settings.widgets.viewCounterEndpoint, "");
   assert.equal(settings.widgets.spotify.enabled, false);
   assert.equal(settings.widgets.spotify.placement, "fixed-bottom-right");
+  assert.equal(settings.games.enabled, false);
   assert.equal(validSiteSettings(settings), true);
+});
+
+test("validates the overall games setting", () => {
+  const settings = defaultSiteSettings();
+  settings.games.enabled = true;
+  assert.equal(validSiteSettings(settings), true);
+  settings.games.enabled = "yes";
+  assert.equal(validSiteSettings(settings), false);
 });
 
 test("accepts public Spotify URLs but rejects credential-bearing settings", () => {

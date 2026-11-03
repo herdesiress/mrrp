@@ -68,6 +68,7 @@
         <nav class="settings-categories" aria-label="Settings categories">
           <button type="button" data-category="general" aria-pressed="true">general</button>
           <button type="button" data-category="site" aria-pressed="false">site</button>
+          <button type="button" data-category="games" aria-pressed="false">games</button>
           <button type="button" data-category="misc" aria-pressed="false">misc</button>
         </nav>
         <div class="settings-content" data-settings="general">
@@ -97,6 +98,11 @@
             <option value="bottom">bottom of the page</option>
           </select>
           <p>The site already has its own icon; no favicon URL is needed. For the public listening card, use the Worker URL ending in <code>/now-playing</code>; configure its matching relay key in DiscSpot → Settings → Connections. The editor cannot read DiscSpot on your Mac from GitHub Pages directly.</p>
+        </div>
+        <div class="settings-content" data-settings="games" hidden>
+          <h2>Games</h2>
+          <label><input id="games-enabled" type="checkbox"> show games on the site</label>
+          <p>Games start closed for visitors. They can open the controller menu whenever they want.</p>
         </div>
         <div class="settings-content" data-settings="misc" hidden>
           <h2>Misc</h2>

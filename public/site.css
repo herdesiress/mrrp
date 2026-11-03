@@ -40,13 +40,65 @@ body {
   max-width: min(18rem, calc(100vw - 1.5rem));
   padding: 0.85rem 1rem;
   border: 1px solid color-mix(in srgb, var(--muted) 24%, transparent);
-  border-top: 0;
-  border-right: 0;
   background: color-mix(in srgb, var(--background) 94%, var(--muted));
   color: var(--muted);
   font-size: 0.72rem;
   line-height: 1.4;
   text-align: left;
+  transition: opacity 180ms ease, transform 180ms ease;
+  animation: widget-panel-in 180ms ease-out;
+}
+
+.site-tools.is-closing,
+.spotify-card.is-closing,
+.games-panel.is-closing {
+  opacity: 0;
+  transform: translateY(-0.3rem);
+  pointer-events: none;
+}
+
+.site-tools[hidden],
+.spotify-card[hidden],
+.site-tools-reopen[hidden],
+.spotify-reopen[hidden],
+.games-panel[hidden] {
+  display: none;
+}
+
+.site-tools-content {
+  display: grid;
+  justify-items: start;
+  gap: 0.45rem;
+  padding-top: 0.85rem;
+}
+
+.site-tools-close,
+.spotify-close {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.4rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.site-tools-reopen,
+.spotify-reopen {
+  position: fixed;
+  z-index: 8;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid color-mix(in srgb, var(--muted) 24%, transparent);
+  background: color-mix(in srgb, var(--background) 94%, var(--muted));
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
+.site-tools-reopen {
+  top: 0;
+  right: 0;
 }
 
 .site-view-count {
@@ -95,6 +147,8 @@ body {
   border: 1px solid color-mix(in srgb, var(--muted) 24%, transparent);
   background: color-mix(in srgb, var(--background) 86%, var(--muted));
   color: var(--text);
+  transition: opacity 180ms ease, transform 180ms ease;
+  animation: widget-panel-in 180ms ease-out;
 }
 
 .spotify-card[data-placement^="fixed-bottom-"] {
@@ -114,6 +168,26 @@ body {
   left: 1rem;
 }
 
+.spotify-close {
+  z-index: 1;
+  top: 0.35rem;
+  right: 0.35rem;
+}
+
+.spotify-card .spotify-indicator {
+  right: 2rem;
+}
+
+.spotify-reopen[data-placement="fixed-bottom-left"] {
+  bottom: 1rem;
+  left: 1rem;
+}
+
+.spotify-reopen:not([data-placement="fixed-bottom-left"]) {
+  right: 1rem;
+  bottom: 1rem;
+}
+
 body:has(.spotify-card[data-placement="fixed-bottom-right"]) .back-to-top {
   right: auto;
   left: 1.25rem;
@@ -121,6 +195,11 @@ body:has(.spotify-card[data-placement="fixed-bottom-right"]) .back-to-top {
 
 body:has(.spotify-card[data-placement="fixed-bottom-left"]) .back-to-top {
   right: 1.25rem;
+}
+
+body:has(.spotify-reopen:not([hidden]):not([data-placement="fixed-bottom-left"])) .back-to-top {
+  right: auto;
+  left: 1.25rem;
 }
 
 .spotify-artwork {
@@ -173,6 +252,112 @@ body:has(.spotify-card[data-placement="fixed-bottom-left"]) .back-to-top {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.games-toggle {
+  position: fixed;
+  z-index: 9;
+  top: 0.75rem;
+  left: 0.75rem;
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--muted) 24%, transparent);
+  background: color-mix(in srgb, var(--background) 94%, var(--muted));
+  color: var(--muted);
+}
+
+.games-toggle svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.5;
+}
+
+.games-panel {
+  position: fixed;
+  z-index: 8;
+  top: 3.25rem;
+  left: 0.75rem;
+  width: min(19rem, calc(100vw - 1.5rem));
+  border: 1px solid color-mix(in srgb, var(--muted) 24%, transparent);
+  background: color-mix(in srgb, var(--background) 96%, var(--muted));
+  box-shadow: 0 0.5rem 2rem color-mix(in srgb, #000 42%, transparent);
+  transition: opacity 180ms ease, transform 180ms ease;
+  animation: game-panel-in 180ms ease-out;
+}
+
+.game-card {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.8rem;
+}
+
+.game-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text);
+}
+
+.game-reset {
+  font-size: 0.72rem;
+}
+
+.connect-four-board {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.18rem;
+  padding: 0.35rem;
+  background: color-mix(in srgb, var(--link) 14%, var(--background));
+}
+
+.connect-four-column {
+  display: grid;
+  grid-template-rows: repeat(6, 1fr);
+  gap: 0.18rem;
+  min-width: 0;
+}
+
+.connect-four-cell {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--muted) 23%, var(--background));
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+.connect-four-column:not(:disabled):hover .connect-four-cell {
+  background: color-mix(in srgb, var(--link) 20%, var(--background));
+}
+
+.connect-four-cell[data-player="1"] {
+  background: var(--link);
+}
+
+.connect-four-cell[data-player="2"] {
+  background: #d7a09a;
+}
+
+.connect-four-status {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+@keyframes game-panel-in {
+  from { opacity: 0; transform: translateY(-0.3rem); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes widget-panel-in {
+  from { opacity: 0; transform: translateY(-0.3rem); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .spotify-title {
@@ -524,6 +709,14 @@ img {
     text-align: left;
   }
 
+  .site-tools-close {
+    position: absolute;
+  }
+
+  .site-tools-reopen {
+    position: absolute;
+  }
+
   .page {
     width: min(100% - 2rem, 760px);
     padding-top: 4rem;
@@ -544,6 +737,20 @@ img {
   .spotify-card[data-placement="fixed-bottom-left"] {
     left: 0.5rem;
     bottom: 0.5rem;
+  }
+
+  .spotify-reopen[data-placement="fixed-bottom-left"] {
+    left: 0.5rem;
+    bottom: 0.5rem;
+  }
+
+  .spotify-reopen:not([data-placement="fixed-bottom-left"]) {
+    right: 0.5rem;
+    bottom: 0.5rem;
+  }
+
+  .games-panel {
+    width: min(18rem, calc(100vw - 1.5rem));
   }
 }
 

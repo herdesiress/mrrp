@@ -85,6 +85,8 @@ test("renders enabled visitor tools with an inline favicon and without editor co
   assert.match(html, /your time: <time data-clock="local">--:--<\/time>/);
   assert.match(html, /class="theme-toggle"/);
   assert.match(html, /class="back-to-top"/);
+  assert.match(html, /class="site-tools-close"[^>]*>×<\/button>/);
+  assert.match(html, /class="site-tools-reopen"[^>]*hidden>site info<\/button>/);
   assert.match(html, /rel="icon" href="data:image\/svg\+xml/);
   assert.doesNotMatch(html, /editor\.html/);
 });
@@ -121,4 +123,24 @@ test("does not render a broken Spotify card when no status endpoint is configure
     widgets: { spotify: { enabled: true, endpoint: "", placement: "fixed-bottom-right" } }
   });
   assert.doesNotMatch(html, /spotify-card/);
+});
+
+test("renders optional games closed with the Connect Four board and visitor toggle", () => {
+  const disabled = renderMarkdownPage("# hi");
+  assert.doesNotMatch(disabled, /games-toggle|connect-four-board/);
+  const enabled = renderMarkdownPage("# hi", "./site.css", "./", "./site.js", "title", {
+    games: { enabled: true }
+  });
+  assert.match(enabled, /class="games-toggle"[^>]*aria-expanded="false"/);
+  assert.match(enabled, /class="games-panel" hidden/);
+  assert.equal((enabled.match(/class="connect-four-column"/g) ?? []).length, 7);
+  assert.match(enabled, /your turn · drop a disc/);
+});
+
+test("renders a visitor-controlled Spotify card and reopen toggle", () => {
+  const html = renderMarkdownPage("# hi", "./site.css", "./", "./site.js", "title", {
+    widgets: { spotify: { enabled: true, endpoint: "https://status.example/now-playing", placement: "fixed-bottom-left" } }
+  });
+  assert.match(html, /class="spotify-close"[^>]*>×<\/button>/);
+  assert.match(html, /class="spotify-reopen"[^>]*data-placement="fixed-bottom-left"[^>]*hidden>spotify<\/button>/);
 });

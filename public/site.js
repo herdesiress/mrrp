@@ -42,6 +42,61 @@ document.addEventListener("click", (event) => {
 });
 
 const siteTools = document.querySelector(".site-tools");
+const siteToolsReopen = document.querySelector(".site-tools-reopen");
+const siteToolsClose = document.querySelector(".site-tools-close");
+let siteToolsHideTimer;
+const setSiteToolsVisible = (visible) => {
+  if (!siteTools || !siteToolsReopen) return;
+  clearTimeout(siteToolsHideTimer);
+  if (visible) {
+    siteTools.hidden = false;
+    siteTools.classList.remove("is-closing");
+    siteToolsReopen.hidden = true;
+  } else {
+    siteTools.classList.add("is-closing");
+    siteToolsHideTimer = setTimeout(() => {
+      siteTools.hidden = true;
+      siteTools.classList.remove("is-closing");
+      siteToolsReopen.hidden = false;
+    }, 180);
+  }
+  siteToolsReopen.setAttribute("aria-expanded", String(visible));
+  try {
+    localStorage.setItem("mrrp-site-tools-hidden", String(!visible));
+  } catch {}
+};
+if (siteTools && siteToolsReopen) {
+  let hidden = false;
+  try {
+    hidden = localStorage.getItem("mrrp-site-tools-hidden") === "true";
+  } catch {}
+  siteTools.hidden = hidden;
+  siteToolsReopen.hidden = !hidden;
+  siteToolsReopen.setAttribute("aria-expanded", String(!hidden));
+  siteToolsClose?.addEventListener("click", () => setSiteToolsVisible(false));
+  siteToolsReopen.addEventListener("click", () => setSiteToolsVisible(true));
+}
+
+const gamesToggle = document.querySelector(".games-toggle");
+const gamesPanel = document.querySelector(".games-panel");
+let gamesPanelHideTimer;
+gamesToggle?.addEventListener("click", () => {
+  const visible = gamesToggle.getAttribute("aria-expanded") !== "true";
+  clearTimeout(gamesPanelHideTimer);
+  if (visible) {
+    gamesPanel.hidden = false;
+    gamesPanel.classList.remove("is-closing");
+  } else {
+    gamesPanel.classList.add("is-closing");
+    gamesPanelHideTimer = setTimeout(() => {
+      gamesPanel.hidden = true;
+      gamesPanel.classList.remove("is-closing");
+    }, 180);
+  }
+  gamesToggle.setAttribute("aria-expanded", String(visible));
+  gamesToggle.setAttribute("aria-label", visible ? "Close games" : "Open games");
+});
+
 const clockFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", timeZone: "Australia/Melbourne" });
 const localClockFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
 const updateClocks = () => {
@@ -116,6 +171,37 @@ const formatTime = (seconds) => {
 
 const spotifyCard = document.querySelector(".spotify-card");
 if (spotifyCard) {
+  const spotifyReopen = document.querySelector(".spotify-reopen");
+  const spotifyClose = spotifyCard.querySelector(".spotify-close");
+  let spotifyHideTimer;
+  const setSpotifyVisible = (visible) => {
+    clearTimeout(spotifyHideTimer);
+    if (visible) {
+      spotifyCard.hidden = false;
+      spotifyCard.classList.remove("is-closing");
+      if (spotifyReopen) spotifyReopen.hidden = true;
+    } else {
+      spotifyCard.classList.add("is-closing");
+      spotifyHideTimer = setTimeout(() => {
+        spotifyCard.hidden = true;
+        spotifyCard.classList.remove("is-closing");
+        if (spotifyReopen) spotifyReopen.hidden = false;
+      }, 180);
+    }
+    if (spotifyReopen) {
+      spotifyReopen.setAttribute("aria-expanded", String(visible));
+    }
+    try {
+      localStorage.setItem("mrrp-spotify-hidden", String(!visible));
+    } catch {}
+  };
+  let spotifyHidden = false;
+  try {
+    spotifyHidden = localStorage.getItem("mrrp-spotify-hidden") === "true";
+  } catch {}
+  setSpotifyVisible(!spotifyHidden);
+  spotifyClose?.addEventListener("click", () => setSpotifyVisible(false));
+  spotifyReopen?.addEventListener("click", () => setSpotifyVisible(true));
   const endpoint = spotifyCard.dataset.spotifyEndpoint;
   const status = spotifyCard.querySelector(".spotify-status");
   const artwork = spotifyCard.querySelector(".spotify-artwork");
@@ -199,6 +285,170 @@ if (spotifyCard) {
   };
   updateTrack();
   setInterval(updateProgress, 250);
+}
+
+const connectFourBoard = document.querySelector(".connect-four-board");
+if (connectFourBoard) {
+  const rows = 6;
+  const columns = 7;
+  const human = 1;
+  const bot = 2;
+  const centerFirst = [3, 2, 4, 1, 5, 0, 6];
+  const status = document.querySelector(".connect-four-status");
+  let board = Array.from({ length: rows }, () => Array(columns).fill(0));
+  let gameOver = false;
+  let botThinking = false;
+  let botTimer;
+
+  const openColumns = (state) => centerFirst.filter((column) => state[0][column] === 0);
+  const dropDisc = (state, column, player) => {
+    for (let row = rows - 1; row >= 0; row -= 1) {
+      if (state[row][column] === 0) {
+        state[row][column] = player;
+        return row;
+      }
+    }
+    return -1;
+  };
+  const hasWon = (state, row, column, player) => {
+    for (const [rowStep, columnStep] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+      let total = 1;
+      for (const direction of [-1, 1]) {
+        let nextRow = row + rowStep * direction;
+        let nextColumn = column + columnStep * direction;
+        while (nextRow >= 0 && nextRow < rows && nextColumn >= 0 && nextColumn < columns &&
+          state[nextRow][nextColumn] === player) {
+          total += 1;
+          nextRow += rowStep * direction;
+          nextColumn += columnStep * direction;
+        }
+      }
+      if (total >= 4) return true;
+    }
+    return false;
+  };
+  const scoreBoard = (state) => {
+    let score = 0;
+    for (let row = 0; row < rows; row += 1) {
+      if (state[row][3] === bot) score += 4;
+      if (state[row][3] === human) score -= 4;
+    }
+    for (let row = 0; row < rows; row += 1) {
+      for (let column = 0; column < columns; column += 1) {
+        for (const [rowStep, columnStep] of [[0, 1], [1, 0], [1, 1], [1, -1]]) {
+          const endRow = row + rowStep * 3;
+          const endColumn = column + columnStep * 3;
+          if (endRow < 0 || endRow >= rows || endColumn < 0 || endColumn >= columns) continue;
+          const window = Array.from({ length: 4 }, (_, index) => state[row + rowStep * index][column + columnStep * index]);
+          const botCount = window.filter((cell) => cell === bot).length;
+          const humanCount = window.filter((cell) => cell === human).length;
+          const emptyCount = window.filter((cell) => cell === 0).length;
+          if (humanCount === 0) score += [0, 2, 12, 90, 0][botCount] * (emptyCount ? 1 : 0);
+          if (botCount === 0) score -= [0, 2, 14, 110, 0][humanCount] * (emptyCount ? 1 : 0);
+        }
+      }
+    }
+    return score;
+  };
+  const minimax = (state, depth, alpha, beta, maximizing, lastMove) => {
+    if (lastMove && hasWon(state, lastMove.row, lastMove.column, lastMove.player)) {
+      return lastMove.player === bot ? 100000 + depth : -100000 - depth;
+    }
+    const available = openColumns(state);
+    if (depth === 0 || !available.length) return scoreBoard(state);
+    if (maximizing) {
+      let value = Number.NEGATIVE_INFINITY;
+      for (const column of available) {
+        const next = state.map((row) => row.slice());
+        const row = dropDisc(next, column, bot);
+        value = Math.max(value, minimax(next, depth - 1, alpha, beta, false, { row, column, player: bot }));
+        alpha = Math.max(alpha, value);
+        if (alpha >= beta) break;
+      }
+      return value;
+    }
+    let value = Number.POSITIVE_INFINITY;
+    for (const column of available) {
+      const next = state.map((row) => row.slice());
+      const row = dropDisc(next, column, human);
+      value = Math.min(value, minimax(next, depth - 1, alpha, beta, true, { row, column, player: human }));
+      beta = Math.min(beta, value);
+      if (alpha >= beta) break;
+    }
+    return value;
+  };
+  const chooseBotMove = () => {
+    let bestColumn = centerFirst[0];
+    let bestScore = Number.NEGATIVE_INFINITY;
+    for (const column of openColumns(board)) {
+      const next = board.map((row) => row.slice());
+      const row = dropDisc(next, column, bot);
+      const score = minimax(next, 4, Number.NEGATIVE_INFINITY, Number.POSITIVE_INFINITY, false, { row, column, player: bot });
+      if (score > bestScore) {
+        bestScore = score;
+        bestColumn = column;
+      }
+    }
+    return bestColumn;
+  };
+  const renderBoard = () => {
+    connectFourBoard.querySelectorAll(".connect-four-column").forEach((button) => {
+      const column = Number(button.dataset.column);
+      button.disabled = gameOver || botThinking || board[0][column] !== 0;
+      button.querySelectorAll(".connect-four-cell").forEach((cell, index) => {
+        const player = board[index][column];
+        cell.dataset.player = player ? String(player) : "";
+        cell.setAttribute("aria-hidden", "true");
+      });
+    });
+  };
+  const resetGame = () => {
+    clearTimeout(botTimer);
+    board = Array.from({ length: rows }, () => Array(columns).fill(0));
+    gameOver = false;
+    botThinking = false;
+    status.textContent = "your turn · drop a disc";
+    renderBoard();
+  };
+  connectFourBoard.addEventListener("click", (event) => {
+    const button = event.target.closest(".connect-four-column");
+    if (!button || gameOver || botThinking) return;
+    const column = Number(button.dataset.column);
+    const row = dropDisc(board, column, human);
+    if (row < 0) return;
+    if (hasWon(board, row, column, human)) {
+      gameOver = true;
+      status.textContent = "you win · nice one";
+      renderBoard();
+      return;
+    }
+    if (!openColumns(board).length) {
+      gameOver = true;
+      status.textContent = "draw · try again";
+      renderBoard();
+      return;
+    }
+    botThinking = true;
+    status.textContent = "bot thinking…";
+    renderBoard();
+    botTimer = setTimeout(() => {
+      const botColumn = chooseBotMove();
+      const botRow = dropDisc(board, botColumn, bot);
+      botThinking = false;
+      if (hasWon(board, botRow, botColumn, bot)) {
+        gameOver = true;
+        status.textContent = "bot wins · run it back?";
+      } else if (!openColumns(board).length) {
+        gameOver = true;
+        status.textContent = "draw · try again";
+      } else {
+        status.textContent = "your turn · drop a disc";
+      }
+      renderBoard();
+    }, 240);
+  });
+  document.querySelector(".game-reset")?.addEventListener("click", resetGame);
+  renderBoard();
 }
 
 document.addEventListener("keydown", (event) => {

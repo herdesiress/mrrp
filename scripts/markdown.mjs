@@ -207,7 +207,7 @@ const widgetMarkup = (settings, updatedAt) => {
     tools.push('<span class="site-clocks"><span class="site-clock">my time: <time data-clock="melbourne">--:--</time> <span>(Melbourne, Victoria)</span></span><span class="site-clock">your time: <time data-clock="local">--:--</time></span></span>');
   }
   if (widgets.themeToggle) tools.push('<button class="theme-toggle" type="button" aria-label="Switch to light theme">light</button>');
-  const header = tools.length ? `<header class="site-tools" aria-label="Site information">${tools.join("")}</header>` : "";
+  const header = tools.length ? `<header class="site-tools" aria-label="Site information"><button class="site-tools-close" type="button" aria-label="Hide site information">×</button><div class="site-tools-content">${tools.join("")}</div></header><button class="site-tools-reopen" type="button" aria-expanded="true" hidden>site info</button>` : "";
   const backToTop = widgets.backToTop ? '<button class="back-to-top" type="button" aria-hidden="true" tabindex="-1">back to top</button>' : "";
   return `${header}${backToTop}`;
 };
@@ -215,7 +215,15 @@ const widgetMarkup = (settings, updatedAt) => {
 const spotifyMarkup = (settings) => {
   const { spotify } = normalizeSiteSettings(settings).widgets;
   if (!spotify.enabled || !spotify.endpoint) return "";
-  return `<section class="spotify-card" data-placement="${escapeHtml(spotify.placement)}" data-spotify-endpoint="${escapeHtml(spotify.endpoint)}" aria-label="spotify listening status"><div class="spotify-artwork" aria-hidden="true"></div><span class="spotify-indicator" aria-hidden="true"></span><div class="spotify-details"><span class="spotify-status" role="status">connecting to spotify status…</span><strong class="spotify-title"></strong><span class="spotify-artist"></span><div class="spotify-progress" aria-hidden="true"><span></span></div><div class="spotify-times"><time class="spotify-position">0:00</time><time class="spotify-duration">0:00</time></div><a class="spotify-link" href="https://open.spotify.com/" target="_blank" rel="noreferrer">open in spotify</a></div></section>`;
+  return `<section class="spotify-card" data-placement="${escapeHtml(spotify.placement)}" data-spotify-endpoint="${escapeHtml(spotify.endpoint)}" aria-label="spotify listening status"><div class="spotify-artwork" aria-hidden="true"></div><span class="spotify-indicator" aria-hidden="true"></span><button class="spotify-close" type="button" aria-label="Hide Spotify card">×</button><div class="spotify-details"><span class="spotify-status" role="status">connecting to spotify status…</span><strong class="spotify-title"></strong><span class="spotify-artist"></span><div class="spotify-progress" aria-hidden="true"><span></span></div><div class="spotify-times"><time class="spotify-position">0:00</time><time class="spotify-duration">0:00</time></div><a class="spotify-link" href="https://open.spotify.com/" target="_blank" rel="noreferrer">open in spotify</a></div></section><button class="spotify-reopen" type="button" data-placement="${escapeHtml(spotify.placement)}" aria-expanded="true" hidden>spotify</button>`;
+};
+
+const gamesMarkup = (settings) => {
+  if (!normalizeSiteSettings(settings).games.enabled) return "";
+  const columns = Array.from({ length: 7 }, (_, column) =>
+    `<button class="connect-four-column" type="button" data-column="${column}" aria-label="drop a disc in column ${column + 1}">${Array.from({ length: 6 }, () => '<span class="connect-four-cell"></span>').join("")}</button>`
+  ).join("");
+  return `<button class="games-toggle" type="button" aria-label="Open games" aria-expanded="false"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M7 8h10a4 4 0 0 1 3.8 5.2l-1 3.2a2 2 0 0 1-3.3.8L14 14h-4l-2.5 3.2a2 2 0 0 1-3.3-.8l-1-3.2A4 4 0 0 1 7 8Zm0 2v2m-1-1h2m8-.5h.01m2 2h.01"/></svg></button><aside class="games-panel" hidden aria-label="Games"><div class="game-card"><div class="game-heading"><span>connect four</span><button class="game-reset" type="button">new game</button></div><div class="connect-four-board" role="group" aria-label="Connect Four board">${columns}</div><p class="connect-four-status" role="status" aria-live="polite">your turn · drop a disc</p></div></aside>`;
 };
 
 export const renderMarkdownPage = (source, stylesheet = "./site.css", baseHref = "./", script = "./site.js", pageTitle, settings = {}, updatedAt = new Date().toISOString()) => {
@@ -225,6 +233,7 @@ export const renderMarkdownPage = (source, stylesheet = "./site.css", baseHref =
   const motifCount = Math.max(1, Math.min(20, siteSettings.motif.count));
   const motif = `<div class="floating-motif" data-enabled="${Boolean(siteSettings.motif.enabled)}" data-symbol="${escapeHtml(siteSettings.motif.symbol)}" data-count="${motifCount}" aria-hidden="true"></div>`;
   const spotify = spotifyMarkup(siteSettings);
+  const games = gamesMarkup(siteSettings);
   const pinnedSpotify = ["fixed-bottom-right", "fixed-bottom-left"].includes(siteSettings.widgets.spotify.placement) ? spotify : "";
   if (spotify && !pinnedSpotify) {
     const placement = siteSettings.widgets.spotify.placement;
@@ -251,6 +260,7 @@ export const renderMarkdownPage = (source, stylesheet = "./site.css", baseHref =
   </head>
   <body>
     ${widgetMarkup(siteSettings, updatedAt)}
+    ${games}
     ${motif}
     ${pinnedSpotify}
     <main class="page">${html}</main>

@@ -132,6 +132,7 @@ const defaultWidgets = {
 let siteSettings = {
   motif: { enabled: false, symbol: "", count: 3 },
   widgets: { ...defaultWidgets, spotify: { ...defaultWidgets.spotify } },
+  games: { enabled: false },
   ui: { outlines: false, markdown: false }
 };
 const initializedPages = new WeakSet();
@@ -207,6 +208,7 @@ const pagePayload = (payload) => ({
       symbol: payload.settings?.motif?.symbol ?? "",
       count: payload.settings?.motif?.count ?? 3
     },
+    games: { enabled: Boolean(payload.settings?.games?.enabled) },
     widgets: {
       ...defaultWidgets,
       ...payload.settings?.widgets,
@@ -221,6 +223,8 @@ const isValidDraft = (draft) => draft && typeof draft.content === "string" && ty
   typeof draft.settings?.motif?.symbol === "string" && typeof draft.settings?.motif?.enabled === "boolean" &&
   (draft.settings.motif.count === undefined ||
     (Number.isInteger(draft.settings.motif.count) && draft.settings.motif.count >= 1 && draft.settings.motif.count <= 20)) &&
+  (draft.settings.games === undefined ||
+    (draft.settings.games && typeof draft.settings.games.enabled === "boolean")) &&
   (!draft.settings.widgets || ["viewCount", "lastUpdated", "clocks", "themeToggle", "backToTop"].every((key) => typeof draft.settings.widgets[key] === "boolean")) &&
   (draft.versionNameEnabled === undefined || typeof draft.versionNameEnabled === "boolean") &&
   (draft.versionName === undefined || typeof draft.versionName === "string" && draft.versionName.length <= 72);
@@ -298,6 +302,7 @@ const syncSettingsForm = () => {
   document.querySelector("#feature-spotify").checked = Boolean(siteSettings.widgets.spotify.enabled);
   document.querySelector("#spotify-endpoint").value = siteSettings.widgets.spotify.endpoint;
   document.querySelector("#spotify-placement").value = siteSettings.widgets.spotify.placement;
+  document.querySelector("#games-enabled").checked = Boolean(siteSettings.games?.enabled);
 };
 
 const applySettings = async () => {
@@ -311,6 +316,7 @@ const applySettings = async () => {
     count: Number(motifCountInput.value)
   };
   siteSettings.widgets = siteWidgetsFromForm();
+  siteSettings.games = { enabled: document.querySelector("#games-enabled").checked };
   page.classList.toggle("editable-outlines", siteSettings.ui.outlines);
   document.querySelector("#toggle-outlines").setAttribute("aria-pressed", String(siteSettings.ui.outlines));
   markdownReference.hidden = !siteSettings.ui.markdown;
@@ -336,7 +342,7 @@ const updateStatus = () => {
 const publishedPayload = () => ({
   content: turndown.turndown(page.innerHTML),
   title: titleInput.value.trim() || "home",
-  settings: { motif: siteSettings.motif, widgets: siteSettings.widgets }
+  settings: { motif: siteSettings.motif, widgets: siteSettings.widgets, games: siteSettings.games }
 });
 
 const draftPayload = () => ({
@@ -394,6 +400,7 @@ const initializeEditor = async () => {
         siteSettings = {
           motif: latestDraft.settings.motif,
           widgets: latestDraft.settings.widgets,
+          games: latestDraft.settings.games ?? { enabled: false },
           ui: latestDraft.ui ?? { outlines: false, markdown: false }
         };
         versionNameToggle.setAttribute("aria-pressed", String(Boolean(latestDraft.versionNameEnabled)));
@@ -416,6 +423,7 @@ const initializeEditor = async () => {
         localStorage.removeItem(recoveryKey);
       }
       siteSettings.widgets = serverPayload.settings.widgets;
+      siteSettings.games = serverPayload.settings.games;
       const motif = previewDocument.querySelector(".floating-motif");
       siteSettings.motif = {
         enabled: motif?.dataset.enabled === "true",
@@ -588,6 +596,7 @@ const restoreVersion = async (version) => {
     siteSettings = {
       motif: result.settings.motif,
       widgets: result.settings.widgets ?? defaultWidgets,
+      games: result.settings.games ?? { enabled: false },
       ui: siteSettings.ui ?? { outlines: false, markdown: false }
     };
     localStorage.removeItem(draftKey);
@@ -1584,6 +1593,23 @@ document.querySelectorAll('[data-settings="site"] input, [data-settings="site"] 
     persistDraft();
   });
 });
+document.querySelector("#spotify-placement").addEventListener("change", async () => {
+  try {
+    await renderDraft(draftPayload());
+  } catch (error) {
+    setStatus(error.message || "could not preview listening card position", true);
+  }
+});
+document.querySelector("#games-enabled").addEventListener("change", async (event) => {
+  siteSettings.games = { enabled: event.currentTarget.checked };
+  updateStatus();
+  persistDraft();
+  try {
+    await renderDraft(draftPayload());
+  } catch (error) {
+    setStatus(error.message || "could not preview games setting", true);
+  }
+});
 document.querySelector("#setting-outlines").addEventListener("change", (event) => {
   siteSettings.ui.outlines = event.currentTarget.checked;
   document.querySelector("#toggle-outlines").setAttribute("aria-pressed", String(event.currentTarget.checked));
@@ -1658,6 +1684,7 @@ recoverButton.addEventListener("click", async () => {
     siteSettings = {
       motif: draft.settings.motif,
       widgets: draft.settings.widgets ?? defaultWidgets,
+      games: draft.settings.games ?? { enabled: false },
       ui: draft.ui ?? { outlines: false, markdown: false }
     };
     versionNameToggle.setAttribute("aria-pressed", String(Boolean(draft.versionNameEnabled)));
