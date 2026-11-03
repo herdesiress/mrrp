@@ -14,7 +14,7 @@
     "spotify": {
       "enabled": true,
       "endpoint": "https://mrrp-view-counter.salvalichubizenquiries.workers.dev/now-playing",
-      "placement": "fixed-bottom-right"
+      "placement": "fixed-bottom-left"
     }
   },
   "games": {
