@@ -264,6 +264,76 @@ dialog[open]::backdrop {
   margin-top: 0.5rem;
 }
 
+.pages-hint {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.page-row {
+  align-items: center;
+}
+
+.page-fields {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.page-fields small {
+  color: var(--muted);
+}
+
+.page-fields input {
+  width: 100%;
+  min-width: 8rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
+.page-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 0.4rem;
+}
+
+.page-actions button {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.page-actions button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.page-delete:hover {
+  border-color: #5a3a3a;
+  color: #f2b5b5;
+}
+
+.page-new {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 0.4rem;
+}
+
+.page-new input {
+  min-width: 0;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
+
 .settings {
   display: grid;
   grid-template-columns: 7rem minmax(0, 1fr);

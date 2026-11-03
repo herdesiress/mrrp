@@ -1,14 +1,16 @@
 import { createServer } from "node:http";
 import { createHash, randomUUID } from "node:crypto";
-import { readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
-import { extname, resolve } from "node:path";
+import { dirname, extname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import { renderMarkdownPage, titleFromMarkdown } from "./markdown.mjs";
 import { getRemovedMediaFiles } from "./media-cleanup.mjs";
 import { gitPushEnvironment } from "./git-push-environment.mjs";
 import { defaultSiteSettings, normalizeSiteSettings, validSiteSettings } from "./site-settings.mjs";
+import { publishedPaths, siteAssetPaths } from "./publish-paths.mjs";
+import { pageBodyPath, readPageBody, readPages, renderSiteNavigation, slugifyPage, validPageSlug, writePages } from "./pages.mjs";
 
 const execFileAsync = promisify(execFile);
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -76,30 +78,34 @@ const readSettings = async () => {
   }
 };
 
-const readSiteState = async () => {
+const readSiteState = async (pageSlug = "home") => {
+  const isHome = pageSlug === "home";
+  const pages = await readPages(root);
+  const page = isHome ? null : pages.find((entry) => entry.slug === pageSlug);
+  if (!isHome && !page) throw Object.assign(new Error("Page not found."), { statusCode: 404 });
   const [content, titleText, settings, commitTime] = await Promise.all([
-    readFile(contentPath, "utf8"),
-    readFile(titlePath, "utf8").catch((error) => {
+    isHome ? readFile(contentPath, "utf8") : readPageBody(root, pageSlug).then((body) => body ?? `# ${page.title}\n`),
+    isHome ? readFile(titlePath, "utf8").catch((error) => {
       if (error.code === "ENOENT") return "";
       throw error;
-    }),
+    }) : page.title,
     readSettings(),
-    git("log", "-1", "--format=%ct", "--", "content.md", "site-title.txt", "site-settings.json", "public/media")
+    git("log", "-1", "--format=%ct", "--", ...publishedPaths)
   ]);
-  const title = titleText.trim() || titleFromMarkdown(content);
+  const title = isHome ? titleText.trim() || titleFromMarkdown(content) : page.title;
   const normalizedSettings = normalizeSiteSettings(settings);
-  const payload = { content, title, settings: normalizedSettings };
-  const [contentStat, titleStat, settingsStat] = await Promise.all(
-    [contentPath, titlePath, settingsPath].map((path) => stat(path).catch((error) => {
-      if (error.code === "ENOENT") return { mtimeMs: 0 };
-      throw error;
-    }))
-  );
+  const payload = { content, title, settings: normalizedSettings, page: pageSlug };
+  const watched = isHome ? [contentPath, titlePath, settingsPath] : [pageBodyPath(root, pageSlug), settingsPath];
+  const stats = await Promise.all(watched.map((path) => stat(path).catch((error) => {
+    if (error.code === "ENOENT") return { mtimeMs: 0 };
+    throw error;
+  })));
   const revision = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
   return {
     ...payload,
+    pages,
     revision,
-    updatedAt: Math.max(Number(commitTime || 0) * 1000, contentStat.mtimeMs, titleStat.mtimeMs, settingsStat.mtimeMs)
+    updatedAt: Math.max(Number(commitTime || 0) * 1000, ...stats.map((entry) => entry.mtimeMs))
   };
 };
 const readSiteVersion = async () => (await git("rev-parse", "--short=7", "HEAD")).trim();
@@ -121,7 +127,19 @@ const saveUploadManifest = async () => {
   await writeFile(uploadsManifestPath, `${JSON.stringify([...uploadedMedia].sort(), null, 2)}\n`);
 };
 
-const cleanRemovedMedia = async (previousMarkdown, markdown) => {
+// Media is shared by every page, so cleanup has to look at the whole site or
+// saving one page deletes files another page still points at.
+const readSiteMarkdown = async () => {
+  const pages = await readPages(root);
+  const [home, ...bodies] = await Promise.all([
+    readFile(contentPath, "utf8").catch(() => ""),
+    ...pages.map((entry) => readPageBody(root, entry.slug))
+  ]);
+  return [home, ...bodies.map((body) => body ?? "")].join("\n");
+};
+
+const cleanRemovedMedia = async (previousMarkdown) => {
+  const markdown = await readSiteMarkdown();
   for (const filename of getRemovedMediaFiles(previousMarkdown, markdown, uploadedMedia)) {
     await rm(resolve(mediaPath, filename), { force: true });
     uploadedMedia.delete(filename);
@@ -162,36 +180,105 @@ const pushFailure = (error) => {
   if (/invalid username or token|authentication failed|permission to .+ denied|http 403/i.test(details)) {
     return "Saved locally, but GitHub rejected the active account. Sign in with an account that can push to this repository using `gh auth login --web`, then retry.";
   }
+  if (/non-fast-forward|fetch first|\[rejected\]|divergent branches/i.test(details)) {
+    return "Saved locally, but main moved on GitHub first. Retry the save so it lands on top of the newer main.";
+  }
   return `Saved locally, but Git push failed: ${details}`;
 };
 
+const isAncestor = async (ancestor, descendant) =>
+  git("merge-base", "--is-ancestor", ancestor, descendant)
+    .then(() => true)
+    .catch(() => false);
+
+// Git's stderr is mostly advice; keep the one line that names the problem.
+const firstLine = (error) => (error.stderr || error.message || "")
+  .split(/[\r\n]+/)
+  .map((line) => line.trim())
+  .find((line) => line && !/^(hint:|Rebasing|Could not apply)/i.test(line)) ?? "git failed";
+
+// Replay this checkout on top of main before pushing. Without this a save made
+// from a checkout that is behind turns into a rejected non-fast-forward push.
+const alignWithMain = async () => {
+  try {
+    await git("fetch", "--quiet", "origin", "main");
+  } catch {
+    return;
+  }
+  const head = (await git("rev-parse", "HEAD")).trim();
+  const remote = (await git("rev-parse", "origin/main")).trim();
+  if (remote === head || await isAncestor(remote, head)) return;
+  if (await isAncestor(head, remote)) {
+    try {
+      await git("merge", "--ff-only", "--no-edit", "origin/main");
+    } catch (error) {
+      throw new Error(`main moved on GitHub and this checkout could not fast-forward (${firstLine(error)}). Commit or stash local edits, run \`git pull\`, then save again.`);
+    }
+    return;
+  }
+  const dirty = await git("status", "--porcelain", "--untracked-files=no").catch(() => "");
+  if (dirty) {
+    throw new Error("main moved on GitHub and this checkout has uncommitted edits. Commit or stash them, run `git pull --rebase`, then save again.");
+  }
+  try {
+    await git("rebase", "origin/main");
+  } catch (error) {
+    await git("rebase", "--abort").catch(() => {});
+    throw new Error(`main moved on GitHub and this version conflicts with it (${firstLine(error)}). Run \`git pull --rebase\` in the repo, resolve the conflict, then save again.`);
+  }
+};
+
 const versions = async () => {
-  const output = await git("log", "-n", "50", "--format=%H%x09%cs%x09%s", "--", "content.md", "site-title.txt", "site-settings.json", "public/media");
+  const output = await git("log", "-n", "50", "--format=%H%x09%cs%x09%s", "--", ...publishedPaths);
   return output ? output.split("\n").map((line) => {
     const [sha, date, ...subject] = line.split("\t");
     return { sha, date, subject: subject.join("\t") };
   }) : [];
 };
 
+const readDeployStatus = async (sha) => {
+  try {
+    const { stdout } = await execFileAsync("gh", [
+      "run", "list", "--commit", sha, "--limit", "1", "--json", "status,conclusion,url"
+    ], { cwd: root, timeout: 15_000, maxBuffer: 1_000_000 });
+    const [run] = JSON.parse(stdout || "[]");
+    return run ? { status: run.status, conclusion: run.conclusion, url: run.url } : { status: "waiting" };
+  } catch {
+    return { status: "unknown" };
+  }
+};
+
 let lastPushedHead = null;
+const pushMain = async () => {
+  await push("-c", "core.compression=0", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "push", "origin", "HEAD:main");
+};
+
 const publishSite = async (subject = "Update personal site") => {
-  await git("add", "--", "content.md", "site-title.txt", "site-settings.json", "public/media");
-  const changes = await git("diff", "--cached", "--quiet", "--", "content.md", "site-title.txt", "site-settings.json", "public/media")
+  await git("add", "--", ...publishedPaths);
+  const changes = await git("diff", "--cached", "--quiet", "--", ...publishedPaths)
     .then(() => false)
     .catch((error) => {
       if (error.code === 1) return true;
       throw error;
     });
-  if (changes) await git("commit", "--only", "-m", subject, "--", "content.md", "site-title.txt", "site-settings.json", "public/media");
-  const output = await git("log", "-1", "--format=%H%x09%cs%x09%s", "--", "content.md", "site-title.txt", "site-settings.json", "public/media");
-  const [sha, date, ...subjectParts] = output.split("\t");
-  const version = sha ? { sha, date, subject: subjectParts.join("\t") } : null;
+  if (changes) await git("commit", "--only", "-m", subject, "--", ...publishedPaths);
   const head = await git("rev-parse", "HEAD");
   if (head !== lastPushedHead) {
-    await push("-c", "core.compression=0", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", "push", "origin", "HEAD:main");
-    lastPushedHead = head;
+    await alignWithMain();
+    try {
+      await pushMain();
+    } catch (error) {
+      const details = error.stderr ?? "";
+      if (!/non-fast-forward|fetch first|\[rejected\]|divergent branches/i.test(details)) throw error;
+      await alignWithMain();
+      await pushMain();
+    }
+    lastPushedHead = await git("rev-parse", "HEAD");
   }
-  return version;
+  // Read the version after syncing: a rebase rewrites the commit the save made.
+  const output = await git("log", "-1", "--format=%H%x09%cs%x09%s", "--", ...publishedPaths);
+  const [sha, date, ...subjectParts] = output.split("\t");
+  return sha ? { sha, date, subject: subjectParts.join("\t") } : null;
 };
 
 const sendFile = async (response, path) => {
@@ -232,7 +319,9 @@ const server = createServer(async (request, response) => {
       }
       const state = await readSiteState();
       const version = await readSiteVersion();
-      const html = renderMarkdownPage(draft.content, "/preview/site.css", "/preview/", "/preview/site.js", draft.title, draft.settings, new Date(state.updatedAt).toISOString(), version);
+      const pages = state.pages;
+      const navigation = renderSiteNavigation({ pages, isHome: (draft.page ?? "home") === "home" });
+      const html = renderMarkdownPage(draft.content, "/preview/site.css", "/preview/", "/preview/site.js", draft.title, draft.settings, new Date(state.updatedAt).toISOString(), version, navigation);
       const id = randomUUID();
       renderedDrafts.set(id, html);
       if (renderedDrafts.size > 8) renderedDrafts.delete(renderedDrafts.keys().next().value);
@@ -243,8 +332,9 @@ const server = createServer(async (request, response) => {
       return;
     }
     if (request.method === "GET" && pathname === "/state") {
+      const requestedPage = new URL(request.url, "http://localhost").searchParams.get("page") ?? "home";
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" })
-        .end(JSON.stringify(await readSiteState()));
+        .end(JSON.stringify(await readSiteState(requestedPage)));
       return;
     }
     if (request.method === "PUT" && pathname === "/save") {
@@ -267,27 +357,57 @@ const server = createServer(async (request, response) => {
         response.writeHead(400).end("Save data must include valid content, a title, settings, and a single-line version name under 72 characters.");
         return;
       }
+      const pageSlug = payload.page ?? "home";
+      if (pageSlug !== "home" && !validPageSlug.test(pageSlug)) {
+        response.writeHead(400).end("Save data must name a valid page.");
+        return;
+      }
+      const isHome = pageSlug === "home";
       const markdown = payload.content.replace(/\n*$/, "");
-      const title = payload.title.trim() || "home";
-      const previousMarkdown = await readFile(contentPath, "utf8");
-      await writeFile(contentPath, `${markdown}\n`);
-      await writeFile(titlePath, `${title}\n`);
+      const title = payload.title.trim() || (isHome ? "home" : pageSlug);
+      const previousMarkdown = await readSiteMarkdown();
+      if (isHome) {
+        await writeFile(contentPath, `${markdown}\n`);
+        await writeFile(titlePath, `${title}\n`);
+      } else {
+        const pages = await readPages(root);
+        const index = pages.findIndex((entry) => entry.slug === pageSlug);
+        if (index === -1) {
+          response.writeHead(404).end("Page not found.");
+          return;
+        }
+        await mkdir(dirname(pageBodyPath(root, pageSlug)), { recursive: true });
+        await writeFile(pageBodyPath(root, pageSlug), `${markdown}\n`);
+        pages[index] = { ...pages[index], title };
+        await writePages(root, pages);
+      }
       await writeFile(settingsPath, `${JSON.stringify(payload.settings, null, 2)}\n`);
-      await cleanRemovedMedia(previousMarkdown, markdown);
+      await cleanRemovedMedia(previousMarkdown);
       try {
         const version = await publishSite(payload.versionName?.trim() || "Update personal site");
         const savedPayload = {
           content: `${markdown}\n`,
           title,
-          settings: normalizeSiteSettings(payload.settings)
+          settings: normalizeSiteSettings(payload.settings),
+          page: pageSlug
         };
         const revision = createHash("sha256").update(JSON.stringify(savedPayload)).digest("hex");
         response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
-          .end(JSON.stringify({ version, revision, message: "saved and pushed to main" }));
+          .end(JSON.stringify({ version, revision, page: pageSlug, message: "saved and pushed to main" }));
       } catch (error) {
         response.writeHead(502, { "Content-Type": "application/json; charset=utf-8" })
           .end(JSON.stringify({ error: pushFailure(error) }));
       }
+      return;
+    }
+    if (request.method === "GET" && pathname === "/deploy") {
+      const sha = new URL(request.url, "http://localhost").searchParams.get("sha") ?? "";
+      if (!/^[0-9a-f]{7,40}$/.test(sha)) {
+        response.writeHead(400).end("Unknown version.");
+        return;
+      }
+      response.writeHead(200, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" })
+        .end(JSON.stringify(await readDeployStatus(sha)));
       return;
     }
     if (request.method === "GET" && pathname === "/versions") {
@@ -328,6 +448,10 @@ const server = createServer(async (request, response) => {
         } else {
           await writeFile(settingsPath, `${JSON.stringify({ motif: { enabled: false, symbol: "" } }, null, 2)}\n`);
         }
+        const hasSavedAssets = Boolean(await git("ls-tree", "-r", "--name-only", requestedVersion, "--", ...siteAssetPaths));
+        if (hasSavedAssets) {
+          await git("restore", `--source=${requestedVersion}`, "--staged", "--worktree", "--", ...siteAssetPaths);
+        }
         const version = await publishSite("Restore personal site version");
         response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
           .end(JSON.stringify({
@@ -340,6 +464,94 @@ const server = createServer(async (request, response) => {
       } catch (error) {
         response.writeHead(502, { "Content-Type": "application/json; charset=utf-8" })
           .end(JSON.stringify({ error: pushFailure(error).replace("Saved locally, but ", "") }));
+      }
+      return;
+    }
+    if (pathname === "/pages") {
+      const cleanText = (value, limit) => String(value ?? "").replace(/\s+/g, " ").trim().slice(0, limit);
+      const reply = async (extra, status = 200) => {
+        const pages = await readPages(root);
+        response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" })
+          .end(JSON.stringify({ pages, ...extra }));
+      };
+      if (request.method === "GET") {
+        await reply({});
+        return;
+      }
+      if (!["POST", "PUT", "DELETE"].includes(request.method)) {
+        response.writeHead(405).end("Unsupported pages request.");
+        return;
+      }
+      let payload;
+      try {
+        payload = JSON.parse((await readBody(request, 10_000) || Buffer.from("{}")).toString("utf8"));
+      } catch {
+        response.writeHead(400).end("Pages request must be JSON.");
+        return;
+      }
+      if (request.method === "POST") {
+        const title = cleanText(payload.title, 60);
+        if (!title) {
+          response.writeHead(400).end("A page needs a name.");
+          return;
+        }
+        const pages = await readPages(root);
+        if (pages.length >= 60) {
+          response.writeHead(409).end("That is the maximum number of pages.");
+          return;
+        }
+        const base = slugifyPage(title);
+        let slug = base;
+        for (let suffix = 2; pages.some((entry) => entry.slug === slug); suffix += 1) slug = `${base}-${suffix}`;
+        const category = cleanText(payload.category, 40);
+        pages.push(category ? { slug, title, category } : { slug, title });
+        await writePages(root, pages);
+        await mkdir(dirname(pageBodyPath(root, slug)), { recursive: true });
+        await writeFile(pageBodyPath(root, slug), `# ${title}\n`);
+        try {
+          const version = await publishSite(`Add page ${title}`);
+          await reply({ slug, version, message: "page created and pushed to main" });
+        } catch (error) {
+          await reply({ slug, error: pushFailure(error) }, 502);
+        }
+        return;
+      }
+      const slug = String(payload.slug ?? "").trim().toLowerCase();
+      if (!validPageSlug.test(slug)) {
+        response.writeHead(400).end("Unknown page.");
+        return;
+      }
+      const pages = await readPages(root);
+      const index = pages.findIndex((entry) => entry.slug === slug);
+      if (index === -1) {
+        response.writeHead(404).end("Page not found.");
+        return;
+      }
+      if (request.method === "PUT") {
+        const title = cleanText(payload.title, 60);
+        if (!title) {
+          response.writeHead(400).end("A page needs a name.");
+          return;
+        }
+        const category = cleanText(payload.category, 40);
+        pages[index] = category ? { slug, title, category } : { slug, title };
+        await writePages(root, pages);
+        try {
+          const version = await publishSite(`Rename page to ${title}`);
+          await reply({ version, message: "page renamed and pushed to main" });
+        } catch (error) {
+          await reply({ error: pushFailure(error) }, 502);
+        }
+        return;
+      }
+      pages.splice(index, 1);
+      await writePages(root, pages);
+      await rm(pageBodyPath(root, slug), { force: true });
+      try {
+        const version = await publishSite(`Remove page ${slug}`);
+        await reply({ version, message: "page removed and pushed to main" });
+      } catch (error) {
+        await reply({ error: pushFailure(error) }, 502);
       }
       return;
     }
@@ -392,12 +604,20 @@ const server = createServer(async (request, response) => {
     }
 
     if (pathname === "/preview/" || pathname === "/preview/index.html") {
-      const markdown = await readFile(contentPath, "utf8");
-      const title = (await readFile(titlePath, "utf8")).trim() || "home";
-      const settings = await readSettings();
-      const state = await readSiteState();
+      const requestedPage = new URL(request.url, "http://localhost").searchParams.get("page") ?? "home";
+      let state;
+      try {
+        state = await readSiteState(requestedPage);
+      } catch (error) {
+        if (error.statusCode === 404) {
+          response.writeHead(404).end("Page not found.");
+          return;
+        }
+        throw error;
+      }
       const version = await readSiteVersion();
-      const html = renderMarkdownPage(markdown, "/preview/site.css", "/preview/", "/preview/site.js", title, settings, new Date(state.updatedAt).toISOString(), version);
+      const navigation = renderSiteNavigation({ pages: state.pages, isHome: requestedPage === "home" });
+      const html = renderMarkdownPage(state.content, "/preview/site.css", "/preview/", "/preview/site.js", state.title, state.settings, new Date(state.updatedAt).toISOString(), version, navigation);
       response.writeHead(200, {
         "Content-Type": "text/html; charset=utf-8",
         "Cache-Control": "no-store"

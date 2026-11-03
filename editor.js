@@ -117,6 +117,10 @@ turndown.addRule("localMedia", {
 turndown.use(gfm);
 
 let page;
+let currentPage = "home";
+const pageQuery = () => (currentPage === "home" ? "" : `?page=${encodeURIComponent(currentPage)}`);
+const stateUrl = () => `./state${pageQuery()}`;
+const previewUrl = () => `./preview/${pageQuery()}`;
 let lastPushed;
 let baseRevision = null;
 let recoveryDraft = null;
@@ -200,6 +204,7 @@ const writeRecord = (key, payload) => {
 };
 
 const pagePayload = (payload) => ({
+  page: payload.page ?? currentPage,
   content: payload.content?.replace(/\n(?:[ \t]*\n)+/g, "\n\n").replace(/[ \t]+\n$/, "").replace(/\n+$/, "") ?? "",
   title: payload.title,
   settings: {
@@ -222,7 +227,8 @@ const pagePayload = (payload) => ({
 
 const samePage = (left, right) => JSON.stringify(pagePayload(left)) === JSON.stringify(pagePayload(right));
 
-const isValidDraft = (draft) => draft && typeof draft.content === "string" && typeof draft.title === "string" &&
+const isValidDraft = (draft) => draft && (draft.page ?? "home") === currentPage &&
+  typeof draft.content === "string" && typeof draft.title === "string" &&
   typeof draft.settings?.motif?.symbol === "string" && typeof draft.settings?.motif?.enabled === "boolean" &&
   (draft.settings.motif.count === undefined ||
     (Number.isInteger(draft.settings.motif.count) && draft.settings.motif.count >= 1 && draft.settings.motif.count <= 20)) &&
@@ -393,7 +399,7 @@ const initializeEditor = async () => {
   if (!draftRestorationStarted) {
     draftRestorationRunning = true;
     try {
-      const state = await readResponse(await fetch("./state", { cache: "no-store" }));
+      const state = await readResponse(await fetch(stateUrl(), { cache: "no-store" }));
       const serverPayload = pagePayload(state);
       const draft = readRecord(draftKey);
       const recovery = readRecord(recoveryKey);
@@ -553,6 +559,30 @@ const initializeEditor = async () => {
   saveButton.disabled = false;
 };
 
+// A push is fast; GitHub Pages takes ~30-45s to publish it. Without this the
+// site looks like it is still on the previous version.
+const watchDeploy = async (sha) => {
+  if (!sha) return;
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    let result;
+    try {
+      result = await readResponse(await fetch(`./deploy?sha=${sha}`, { cache: "no-store" }));
+    } catch {
+      return;
+    }
+    if (result.status === "completed") {
+      setStatus(result.conclusion === "success"
+        ? `live · version ${sha.slice(0, 7)}`
+        : `deploy failed · open ${result.url ?? "GitHub Actions"}`, result.conclusion !== "success");
+      return;
+    }
+    if (result.status === "in_progress" || result.status === "queued" || result.status === "waiting") {
+      setStatus(`pushed · github pages is building… (${sha.slice(0, 7)})`);
+    }
+  }
+};
+
 const save = async () => {
   if (!page) return;
   const namesVersion = versionNameToggle.getAttribute("aria-pressed") === "true";
@@ -571,7 +601,7 @@ const save = async () => {
     const result = await readResponse(await fetch("./save", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...payload, content: markdown, versionName: namesVersion ? versionName : "" })
+      body: JSON.stringify({ ...payload, page: currentPage, content: markdown, versionName: namesVersion ? versionName : "" })
     }));
     baseRevision = result.revision;
     lastPushed = pagePayload({ ...payload, content: markdown });
@@ -586,6 +616,7 @@ const save = async () => {
     site.contentWindow.location.reload();
     await loaded;
     setStatus(result.message || "saved and pushed to main");
+    watchDeploy(result.version?.sha);
   } catch (error) {
     showPushHelp(error);
     setStatus(error.message || "could not publish", true);
@@ -595,7 +626,7 @@ const save = async () => {
 };
 
 const restoreVersion = async (version) => {
-  if (!window.confirm(`Restore ${version.sha.slice(0, 7)} (${version.subject}) and push it to the site?`)) return;
+  if (!window.confirm(`Restore ${version.sha.slice(0, 7)} (${version.subject})? This also restores the site styles and scripts, then pushes to the site.`)) return;
   setStatus("restoring version…");
   try {
     const result = await readResponse(await fetch("./restore", {
@@ -1674,6 +1705,143 @@ document.querySelector("#open-versions").addEventListener("click", async () => {
 });
 document.querySelector("#close-versions").addEventListener("click", () => versionsDialog.close());
 closeOnBackdrop(versionsDialog);
+
+const pagesDialog = document.querySelector("#pages-dialog");
+const pageListElement = document.querySelector("#page-list");
+const newPageForm = document.querySelector("#new-page-form");
+const newPageTitle = document.querySelector("#new-page-title");
+const newPageCategory = document.querySelector("#new-page-category");
+
+const pagesRequest = async (method, body) => readResponse(await fetch("./pages", {
+  method,
+  headers: { "Content-Type": "application/json" },
+  body: body === undefined ? undefined : JSON.stringify(body)
+}));
+
+const switchPage = async (slug) => {
+  if (pagesDialog.open) pagesDialog.close();
+  if (slug === currentPage) return;
+  currentPage = slug;
+  draftRestorationStarted = false;
+  draftRestorationRunning = false;
+  recoverButton.hidden = true;
+  const loaded = new Promise((resolve) => site.addEventListener("load", resolve, { once: true }));
+  site.src = previewUrl();
+  await loaded;
+  setStatus(`editing ${slug === "home" ? "home" : slug}`);
+};
+
+const pageRow = (entry, isCurrent) => {
+  const item = document.createElement("li");
+  item.className = "page-row";
+  const fields = document.createElement("div");
+  fields.className = "page-fields";
+  const title = document.createElement("input");
+  title.type = "text";
+  title.maxLength = 60;
+  title.value = entry.title;
+  title.setAttribute("aria-label", `Name for ${entry.slug}`);
+  const category = document.createElement("input");
+  category.type = "text";
+  category.maxLength = 40;
+  category.value = entry.category ?? "";
+  category.placeholder = "category";
+  category.setAttribute("aria-label", `Category for ${entry.slug}`);
+  fields.append(title, category);
+
+  const actions = document.createElement("div");
+  actions.className = "page-actions";
+  const open = document.createElement("button");
+  open.type = "button";
+  open.textContent = isCurrent ? "editing" : "open";
+  open.disabled = isCurrent;
+  open.addEventListener("click", () => switchPage(entry.slug));
+  const rename = document.createElement("button");
+  rename.type = "button";
+  rename.textContent = "save";
+  rename.addEventListener("click", async () => {
+    try {
+      await pagesRequest("PUT", { slug: entry.slug, title: title.value, category: category.value });
+      setStatus(`renamed to ${title.value.trim()}`);
+      await loadPages();
+      if (entry.slug === currentPage) {
+        const loaded = new Promise((resolve) => site.addEventListener("load", resolve, { once: true }));
+        site.src = previewUrl();
+        await loaded;
+      }
+    } catch (error) {
+      setStatus(error.message || "could not rename page", true);
+    }
+  });
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "page-delete";
+  remove.textContent = "delete";
+  remove.addEventListener("click", async () => {
+    if (!window.confirm(`Delete the page "${entry.title}"? This removes it from the site.`)) return;
+    try {
+      await pagesRequest("DELETE", { slug: entry.slug });
+      if (entry.slug === currentPage) await switchPage("home");
+      await loadPages();
+      setStatus(`deleted ${entry.title}`);
+    } catch (error) {
+      setStatus(error.message || "could not delete page", true);
+    }
+  });
+  actions.append(open, rename, remove);
+  item.append(fields, actions);
+  return item;
+};
+
+const loadPages = async () => {
+  const result = await pagesRequest("GET");
+  pageListElement.replaceChildren();
+  const homeItem = document.createElement("li");
+  homeItem.className = "page-row";
+  const homeFields = document.createElement("div");
+  homeFields.className = "page-fields";
+  const homeName = document.createElement("span");
+  homeName.textContent = "home";
+  const homeNote = document.createElement("small");
+  homeNote.textContent = "the main page, always first";
+  homeFields.append(homeName, homeNote);
+  const homeActions = document.createElement("div");
+  homeActions.className = "page-actions";
+  const homeOpen = document.createElement("button");
+  homeOpen.type = "button";
+  homeOpen.textContent = currentPage === "home" ? "editing" : "open";
+  homeOpen.disabled = currentPage === "home";
+  homeOpen.addEventListener("click", () => switchPage("home"));
+  homeActions.append(homeOpen);
+  homeItem.append(homeFields, homeActions);
+  pageListElement.append(homeItem);
+  for (const entry of result.pages) pageListElement.append(pageRow(entry, entry.slug === currentPage));
+};
+
+document.querySelector("#open-pages").addEventListener("click", async () => {
+  pagesDialog.showModal();
+  try {
+    await loadPages();
+  } catch (error) {
+    setStatus(error.message || "could not load pages", true);
+  }
+});
+document.querySelector("#close-pages").addEventListener("click", () => pagesDialog.close());
+closeOnBackdrop(pagesDialog);
+newPageForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const title = newPageTitle.value.trim();
+  if (!title) return;
+  try {
+    const result = await pagesRequest("POST", { title, category: newPageCategory.value });
+    newPageTitle.value = "";
+    newPageCategory.value = "";
+    await switchPage(result.slug);
+    setStatus(`added ${result.slug}`);
+  } catch (error) {
+    setStatus(error.message || "could not add page", true);
+  }
+});
 closeOnBackdrop(settingsDialog);
 closeOnBackdrop(sourceDialog);
 closeOnBackdrop(pushHelpDialog);

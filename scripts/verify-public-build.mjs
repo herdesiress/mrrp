@@ -1,14 +1,22 @@
 import { access, readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
+import { readPages } from "./pages.mjs";
 import { normalizeSiteSettings } from "./site-settings.mjs";
 
 const settings = normalizeSiteSettings(JSON.parse(await readFile("site-settings.json", "utf8")));
+const pages = await readPages(process.cwd());
 const html = await readFile("dist/index.html", "utf8");
 const files = await readdir("dist");
-const expectedFiles = ["index.html", "media", "site.css", "site.js"];
+const expectedFiles = ["index.html", "media", "site.css", "site.js", ...pages.map((page) => page.slug)].sort();
 if (files.length !== expectedFiles.length || expectedFiles.some((file) => !files.includes(file))) {
   throw new Error("Public build contains unexpected files or is missing expected public assets.");
 }
+for (const page of pages) {
+  const pageHtml = await readFile(resolve("dist", page.slug, "index.html"), "utf8");
+  if (!pageHtml.includes('class="home-button"')) throw new Error(`Page ${page.slug} is missing its home button.`);
+  if (!pageHtml.includes(`../${page.slug}/`)) throw new Error(`Page ${page.slug} does not link back to itself in the pages list.`);
+}
+if (pages.length && !html.includes('class="site-pages"')) throw new Error("Home page is missing the pages list.");
 const required = [
   [settings.motif.enabled, /<div class="floating-motif" data-enabled="true"/, "floating text"],
   [settings.widgets.viewCount, /class="site-view-count"/, "view counter"],
