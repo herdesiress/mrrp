@@ -497,14 +497,13 @@ const server = createServer(async (request, response) => {
       }
       const bySlug = new Map(pages.map((entry) => [entry.slug, entry]));
       await writePages(root, slugs.map((slug) => bySlug.get(slug)));
-      try {
-        const version = await publishSite("Reorder pages");
-        response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
-          .end(JSON.stringify({ pages: await readPages(root), version, message: "page order saved and pushed to main" }));
-      } catch (error) {
-        response.writeHead(502, { "Content-Type": "application/json; charset=utf-8" })
-          .end(JSON.stringify({ error: pushFailure(error) }));
-      }
+      const version = await publishSite("Reorder pages").catch((error) => ({ warning: pushFailure(error) }));
+      response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
+        .end(JSON.stringify({
+          pages: await readPages(root),
+          version,
+          message: version.warning ? "page order saved, but the push failed" : "page order saved and pushed to main"
+        }));
       return;
     }
     if (pathname === "/pages") {
@@ -536,6 +535,12 @@ const server = createServer(async (request, response) => {
           return;
         }
         const pages = await readPages(root);
+        // Creating the same page twice is a double submit, not a new page.
+        const existing = pages.find((entry) => entry.title.toLowerCase() === title.toLowerCase());
+        if (existing) {
+          await reply({ slug: existing.slug, message: "that page already exists" });
+          return;
+        }
         if (pages.length >= 60) {
           response.writeHead(409).end("That is the maximum number of pages.");
           return;
@@ -548,12 +553,8 @@ const server = createServer(async (request, response) => {
         await writePages(root, pages);
         await mkdir(dirname(pageBodyPath(root, slug)), { recursive: true });
         await writeFile(pageBodyPath(root, slug), `# ${title}\n`);
-        try {
-          const version = await publishSite(`Add page ${title}`);
-          await reply({ slug, version, message: "page created and pushed to main" });
-        } catch (error) {
-          await reply({ slug, error: pushFailure(error) }, 502);
-        }
+        const version = await publishSite(`Add page ${title}`).catch((error) => ({ warning: pushFailure(error) }));
+        await reply({ slug, version, message: version.warning ? "page created, but the push failed" : "page created and pushed to main" });
         return;
       }
       const slug = String(payload.slug ?? "").trim().toLowerCase();
@@ -581,23 +582,15 @@ const server = createServer(async (request, response) => {
         const category = cleanText(payload.category, 40);
         pages[index] = category ? { slug, title, category } : { slug, title };
         await writePages(root, pages);
-        try {
-          const version = await publishSite(`Rename page to ${title}`);
-          await reply({ version, message: "page renamed and pushed to main" });
-        } catch (error) {
-          await reply({ error: pushFailure(error) }, 502);
-        }
+        const version = await publishSite(`Rename page to ${title}`).catch((error) => ({ warning: pushFailure(error) }));
+        await reply({ version, message: version.warning ? "page renamed, but the push failed" : "page renamed and pushed to main" });
         return;
       }
       pages.splice(index, 1);
       await writePages(root, pages);
       await rm(pageBodyPath(root, slug), { force: true });
-      try {
-        const version = await publishSite(`Remove page ${slug}`);
-        await reply({ version, message: "page removed and pushed to main" });
-      } catch (error) {
-        await reply({ error: pushFailure(error) }, 502);
-      }
+      const version = await publishSite(`Remove page ${slug}`).catch((error) => ({ warning: pushFailure(error) }));
+      await reply({ version, message: version.warning ? "page removed, but the push failed" : "page removed and pushed to main" });
       return;
     }
     if (request.method === "PUT" && pathname === "/settings") {

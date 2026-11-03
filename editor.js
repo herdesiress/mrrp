@@ -1778,11 +1778,24 @@ const newPageForm = document.querySelector("#new-page-form");
 const newPageTitle = document.querySelector("#new-page-title");
 const newPageCategory = document.querySelector("#new-page-category");
 
-const pagesRequest = async (method, body) => readResponse(await fetch("./pages", {
-  method,
-  headers: { "Content-Type": "application/json" },
-  body: body === undefined ? undefined : JSON.stringify(body)
-}));
+const newPageSubmit = newPageForm.querySelector("button[type=submit]");
+
+// Every page action publishes, and a publish takes about two seconds. Without
+// this lock each impatient click queues another request (and another page).
+let pagesBusy = false;
+const pagesRequest = async (method, body, url = "./pages") => {
+  if (pagesBusy) throw new Error("still saving the last page change");
+  pagesBusy = true;
+  try {
+    return await readResponse(await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body)
+    }));
+  } finally {
+    pagesBusy = false;
+  }
+};
 
 const switchPage = async (slug) => {
   if (pagesDialog.open) pagesDialog.close();
@@ -1807,6 +1820,8 @@ const pageRow = (entry, isCurrent, index, total) => {
   title.type = "text";
   title.maxLength = 60;
   title.value = entry.title;
+  title.placeholder = "page name";
+  title.title = `/${entry.slug}`;
   title.setAttribute("aria-label", `Name for ${entry.slug}`);
   const category = document.createElement("input");
   category.type = "text";
@@ -1827,15 +1842,12 @@ const pageRow = (entry, isCurrent, index, total) => {
   rename.type = "button";
   rename.textContent = "save";
   rename.addEventListener("click", async () => {
+    if (pagesBusy) return;
     try {
-      await pagesRequest("PUT", { slug: entry.slug, title: title.value, category: category.value });
-      setStatus(`renamed to ${title.value.trim()}`);
+      const result = await pagesRequest("PUT", { slug: entry.slug, title: title.value, category: category.value });
       await loadPages();
-      if (entry.slug === currentPage) {
-        const loaded = new Promise((resolve) => site.addEventListener("load", resolve, { once: true }));
-        site.src = previewUrl();
-        await loaded;
-      }
+      if (entry.slug === currentPage) await reloadPreview();
+      setStatus(result.warning || result.message || `renamed to ${title.value.trim()}`, Boolean(result.warning));
     } catch (error) {
       setStatus(error.message || "could not rename page", true);
     }
@@ -1845,12 +1857,12 @@ const pageRow = (entry, isCurrent, index, total) => {
   remove.className = "page-delete";
   remove.textContent = "delete";
   remove.addEventListener("click", async () => {
-    if (!window.confirm(`Delete the page "${entry.title}"? This removes it from the site.`)) return;
+    if (pagesBusy) return;
     try {
-      await pagesRequest("DELETE", { slug: entry.slug });
+      const result = await pagesRequest("DELETE", { slug: entry.slug });
       if (entry.slug === currentPage) await switchPage("home");
       await loadPages();
-      setStatus(`deleted ${entry.title}`);
+      setStatus(result.warning || result.message || `deleted ${entry.title}`, Boolean(result.warning));
     } catch (error) {
       setStatus(error.message || "could not delete page", true);
     }
@@ -1875,17 +1887,14 @@ const pageRow = (entry, isCurrent, index, total) => {
 let currentPages = [];
 
 const movePage = async (slug, delta) => {
+  if (pagesBusy) return;
   const order = currentPages.map((entry) => entry.slug);
   const index = order.indexOf(slug);
   const target = index + delta;
   if (index < 0 || target < 0 || target >= order.length) return;
   [order[index], order[target]] = [order[target], order[index]];
   try {
-    await readResponse(await fetch("./pages/order", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ slugs: order })
-    }));
+    await pagesRequest("PUT", { slugs: order }, "./pages/order");
     persistDraft();
     draftRestorationStarted = false;
     draftRestorationRunning = false;
@@ -1940,15 +1949,21 @@ closeOnBackdrop(pagesDialog);
 newPageForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const title = newPageTitle.value.trim();
-  if (!title) return;
+  if (!title || pagesBusy) return;
+  newPageSubmit.disabled = true;
+  newPageSubmit.textContent = "adding…";
   try {
     const result = await pagesRequest("POST", { title, category: newPageCategory.value });
     newPageTitle.value = "";
     newPageCategory.value = "";
+    await loadPages();
     await switchPage(result.slug);
-    setStatus(`added ${result.slug}`);
+    setStatus(result.warning || result.message || `added ${result.slug}`, Boolean(result.warning));
   } catch (error) {
     setStatus(error.message || "could not add page", true);
+  } finally {
+    newPageSubmit.disabled = false;
+    newPageSubmit.textContent = "add page";
   }
 });
 closeOnBackdrop(settingsDialog);
