@@ -1,7 +1,7 @@
 {
   "motif": {
-    "enabled": true,
-    "symbol": ";3",
+    "symbol": "",
+    "enabled": false,
     "count": 3
   }
 }
