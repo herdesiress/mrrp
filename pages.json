@@ -34,6 +34,11 @@
       "slug": "test2-6",
       "title": "test2",
       "category": "test"
+    },
+    {
+      "slug": "test2-7",
+      "title": "test2",
+      "category": "test"
     }
   ]
 }
