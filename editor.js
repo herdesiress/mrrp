@@ -33,8 +33,10 @@ const regionFile = document.querySelector("#region-file");
 const regionAsciiInput = document.querySelector("#region-ascii-input");
 const regionPlace = document.querySelector("#region-place");
 const regionCancel = document.querySelector("#region-cancel");
-const draftKey = "mrrp-site-editor-draft";
-const recoveryKey = "mrrp-site-editor-recovery";
+// Drafts are per page: switching pages must not wipe unsaved work on the one
+// you just left.
+const draftKey = () => `mrrp-site-editor-draft:${currentPage}`;
+const recoveryKey = () => `mrrp-site-editor-recovery:${currentPage}`;
 const mediaExtensions = new Map([
   ["image/png", "png"], ["image/jpeg", "jpg"], ["image/gif", "gif"], ["image/webp", "webp"],
   ["audio/mpeg", "mp3"], ["audio/mp4", "m4a"], ["audio/aac", "aac"], ["audio/wav", "wav"],
@@ -413,10 +415,10 @@ const persistDraft = () => {
   if ([...page.querySelectorAll("img, audio, video")].some((node) => inlineDataUrl(node))) return;
   const draft = draftPayload();
   if (lastPushed && samePage(draft, lastPushed) && !(draft.versionNameEnabled && draft.versionName)) {
-    localStorage.removeItem(draftKey);
+    localStorage.removeItem(draftKey());
     return;
   }
-  writeRecord(draftKey, draft);
+  writeRecord(draftKey(), draft);
 };
 
 const scheduleDraftSave = () => persistDraft();
@@ -451,8 +453,8 @@ const initializeEditor = async () => {
     try {
       const state = await readResponse(await fetch(stateUrl(), { cache: "no-store" }));
       const serverPayload = pagePayload(state);
-      const draft = readRecord(draftKey);
-      const recovery = readRecord(recoveryKey);
+      const draft = readRecord(draftKey());
+      const recovery = readRecord(recoveryKey());
       const latestDraft = [draft, recovery].filter(isValidDraft)
         .sort((left, right) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0];
       const draftDiffers = latestDraft && (!samePage(latestDraft, serverPayload) ||
@@ -471,8 +473,8 @@ const initializeEditor = async () => {
         versionNameInput.hidden = !latestDraft.versionNameEnabled;
         versionNameInput.value = latestDraft.versionName ?? "";
         await renderDraft(latestDraft);
-        localStorage.removeItem(draftKey);
-        localStorage.removeItem(recoveryKey);
+        localStorage.removeItem(draftKey());
+        localStorage.removeItem(recoveryKey());
         draftRestorationStarted = true;
         draftRestorationRunning = false;
         await initializeEditor();
@@ -480,11 +482,11 @@ const initializeEditor = async () => {
       }
       if (draftDiffers) {
         recoveryDraft = latestDraft;
-        if (writeRecord(recoveryKey, latestDraft)) localStorage.removeItem(draftKey);
+        if (writeRecord(recoveryKey(), latestDraft)) localStorage.removeItem(draftKey());
         recoverButton.hidden = false;
       } else {
-        localStorage.removeItem(draftKey);
-        localStorage.removeItem(recoveryKey);
+        localStorage.removeItem(draftKey());
+        localStorage.removeItem(recoveryKey());
       }
       siteSettings.widgets = serverPayload.settings.widgets;
       siteSettings.games = serverPayload.settings.games;
@@ -668,8 +670,8 @@ const save = async () => {
     }));
     baseRevision = result.revision;
     lastPushed = pagePayload({ ...payload, content: markdown });
-    localStorage.removeItem(draftKey);
-    localStorage.removeItem(recoveryKey);
+    localStorage.removeItem(draftKey());
+    localStorage.removeItem(recoveryKey());
     recoveryDraft = null;
     recoverButton.hidden = true;
     versionNameInput.value = "";
@@ -701,11 +703,11 @@ const restoreVersion = async (version) => {
       games: result.settings.games ?? { enabled: false },
       ui: siteSettings.ui ?? { outlines: false, markdown: false }
     };
-    localStorage.removeItem(draftKey);
+    localStorage.removeItem(draftKey());
     const state = await readResponse(await fetch(stateUrl(), { cache: "no-store" }));
     baseRevision = state.revision;
     lastPushed = pagePayload(state);
-    localStorage.removeItem(recoveryKey);
+    localStorage.removeItem(recoveryKey());
     recoveryDraft = null;
     recoverButton.hidden = true;
     await reloadPreview();
@@ -1785,6 +1787,7 @@ const pagesRequest = async (method, body) => readResponse(await fetch("./pages",
 const switchPage = async (slug) => {
   if (pagesDialog.open) pagesDialog.close();
   if (slug === currentPage) return;
+  persistDraft();
   currentPage = slug;
   draftRestorationStarted = false;
   draftRestorationRunning = false;
@@ -1967,7 +1970,7 @@ document.querySelector("#retry-push").addEventListener("click", () => {
 });
 document.querySelector("#close-push-help").addEventListener("click", () => pushHelpDialog.close());
 recoverButton.addEventListener("click", async () => {
-  const draft = recoveryDraft ?? readRecord(recoveryKey);
+  const draft = recoveryDraft ?? readRecord(recoveryKey());
   if (!draft) return;
   try {
     siteSettings = {
@@ -1982,7 +1985,7 @@ recoverButton.addEventListener("click", async () => {
     titleInput.value = draft.title;
     document.title = draft.title;
     await renderDraft(draft);
-    localStorage.removeItem(recoveryKey);
+    localStorage.removeItem(recoveryKey());
     recoveryDraft = null;
     recoverButton.hidden = true;
     updateStatus();
