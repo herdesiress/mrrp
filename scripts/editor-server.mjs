@@ -258,6 +258,11 @@ const pushMain = async () => {
 // so only hand git the paths that are actually on disk.
 const existingPublishedPaths = () => publishedPaths.filter((path) => existsSync(resolve(root, path)));
 
+// Page edits are local until the next save & push; the editor uses this to
+// keep its save button enabled while structure is unpublished.
+const pagesPending = async () =>
+  (await git("status", "--porcelain", "--", "pages.json", "pages").catch(() => "")).trim().length > 0;
+
 const publishSite = async (subject = "Update personal site") => {
   const paths = existingPublishedPaths();
   await git("add", "--", ...paths);
@@ -497,12 +502,11 @@ const server = createServer(async (request, response) => {
       }
       const bySlug = new Map(pages.map((entry) => [entry.slug, entry]));
       await writePages(root, slugs.map((slug) => bySlug.get(slug)));
-      const version = await publishSite("Reorder pages").catch((error) => ({ warning: pushFailure(error) }));
       response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" })
         .end(JSON.stringify({
           pages: await readPages(root),
-          version,
-          message: version.warning ? "page order saved, but the push failed" : "page order saved and pushed to main"
+          pending: await pagesPending(),
+          message: "order saved — save & push to publish it"
         }));
       return;
     }
@@ -511,7 +515,7 @@ const server = createServer(async (request, response) => {
       const reply = async (extra, status = 200) => {
         const pages = await readPages(root);
         response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" })
-          .end(JSON.stringify({ pages, ...extra }));
+          .end(JSON.stringify({ pages, pending: await pagesPending(), ...extra }));
       };
       if (request.method === "GET") {
         await reply({});
@@ -553,8 +557,7 @@ const server = createServer(async (request, response) => {
         await writePages(root, pages);
         await mkdir(dirname(pageBodyPath(root, slug)), { recursive: true });
         await writeFile(pageBodyPath(root, slug), `# ${title}\n`);
-        const version = await publishSite(`Add page ${title}`).catch((error) => ({ warning: pushFailure(error) }));
-        await reply({ slug, version, message: version.warning ? "page created, but the push failed" : "page created and pushed to main" });
+        await reply({ slug, message: "page added — save & push to publish it" });
         return;
       }
       const slug = String(payload.slug ?? "").trim().toLowerCase();
@@ -582,15 +585,13 @@ const server = createServer(async (request, response) => {
         const category = cleanText(payload.category, 40);
         pages[index] = category ? { slug, title, category } : { slug, title };
         await writePages(root, pages);
-        const version = await publishSite(`Rename page to ${title}`).catch((error) => ({ warning: pushFailure(error) }));
-        await reply({ version, message: version.warning ? "page renamed, but the push failed" : "page renamed and pushed to main" });
+        await reply({ message: "page renamed — save & push to publish it" });
         return;
       }
       pages.splice(index, 1);
       await writePages(root, pages);
       await rm(pageBodyPath(root, slug), { force: true });
-      const version = await publishSite(`Remove page ${slug}`).catch((error) => ({ warning: pushFailure(error) }));
-      await reply({ version, message: version.warning ? "page removed, but the push failed" : "page removed and pushed to main" });
+      await reply({ message: "page removed — save & push to publish it" });
       return;
     }
     if (request.method === "PUT" && pathname === "/settings") {
