@@ -1,11 +1,6 @@
 {
   "pages": [
     {
-      "slug": "test",
-      "title": "test",
-      "category": "test"
-    },
-    {
       "slug": "test-2",
       "title": "test",
       "category": "test"
