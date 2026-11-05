@@ -984,66 +984,116 @@ img {
   object-fit: contain;
 }
 
-@media (max-width: 560px) {
+@media (max-width: 640px) {
+  body {
+    font-size: 14px;
+    line-height: 1.75;
+  }
+
   .site-sidebar,
   .site-sidebar[data-placement] {
     position: relative;
     inset: auto;
+    width: 100%;
     max-width: none;
     max-height: none;
+    padding: 0.75rem 1rem 0;
     overflow: visible;
     align-content: start;
     justify-items: stretch;
   }
 
+  .site-sidebar[data-placement="top-right"],
+  .site-sidebar[data-placement="top-left"],
+  .site-sidebar[data-placement="bottom-right"],
+  .site-sidebar[data-placement="bottom-left"] {
+    top: auto;
+    bottom: auto;
+    left: auto;
+    right: auto;
+  }
+
   .site-tools {
     position: relative;
+    width: 100%;
     max-width: none;
     justify-items: start;
-    padding: 0.75rem 1rem;
-    border-right: 1px solid color-mix(in srgb, var(--muted) 24%, transparent);
+    padding: 0.75rem 0.85rem;
+    box-shadow: none;
     text-align: left;
+  }
+
+  .site-pages {
+    width: 100%;
+    max-width: none;
+    padding: 0.75rem 0.85rem;
+    box-shadow: none;
   }
 
   .home-button {
     position: fixed;
     top: 0.5rem;
     left: 0.5rem;
+    width: 2.2rem;
+    height: 2.2rem;
   }
 
-  /* keep the in-flow site info box clear of the fixed home button */
   body:has(.home-button) .site-sidebar {
-    margin-top: 2.75rem;
+    margin-top: 2.5rem;
   }
 
   .site-tools-close {
     position: absolute;
+    top: 0.35rem;
+    right: 0.4rem;
   }
 
   .site-tools-reopen {
-    position: absolute;
+    position: static;
+    justify-self: end;
   }
 
   .page {
-    width: min(100% - 2rem, 760px);
-    padding-top: 4rem;
+    width: min(100% - 2rem, 100%);
+    padding: 2.5rem 1rem 6rem;
+    margin: 0 auto;
   }
 
-  .spotify-card[data-placement^="fixed-bottom-"] {
-    grid-template-columns: min(8rem, 38vw) minmax(0, 1fr);
-    gap: 0.6rem;
-    width: min(24rem, calc(100vw - 1rem));
+  h1 { font-size: 1.8rem; }
+  h2 { font-size: 1.45rem; }
+  h3 { font-size: 1.25rem; }
+  h4 { font-size: 1.1rem; }
+
+  .spotify-card {
+    grid-template-columns: min(6.5rem, 30vw) minmax(0, 1fr);
+    gap: 0.55rem;
     padding: 0.35rem;
   }
 
-  .spotify-card[data-placement="fixed-bottom-right"] {
-    right: 0.5rem;
-    bottom: 0.5rem;
+  .spotify-card[data-placement^="fixed-bottom-"] {
+    grid-template-columns: min(6.5rem, 30vw) minmax(0, 1fr);
+    gap: 0.55rem;
+    width: calc(100vw - 1rem);
+    max-width: 24rem;
+    padding: 0.35rem;
   }
 
+  .spotify-card[data-placement="fixed-bottom-right"],
   .spotify-card[data-placement="fixed-bottom-left"] {
     left: 0.5rem;
+    right: 0.5rem;
     bottom: 0.5rem;
+    margin: 0 auto;
+  }
+
+  .spotify-card[data-view="lyrics"] {
+    width: calc(100vw - 1rem);
+    max-width: 24rem;
+    grid-template-columns: min(4rem, 20vw) minmax(0, 1fr);
+  }
+
+  .spotify-lyrics-lines {
+    max-height: 10.5rem;
   }
 
   .spotify-reopen[data-placement="fixed-bottom-left"] {
@@ -1056,8 +1106,68 @@ img {
     bottom: 0.5rem;
   }
 
+  .games-toggle {
+    top: 0.5rem;
+    left: 0.5rem;
+    width: 2.2rem;
+    height: 2.2rem;
+  }
+
+  body:has(.home-button) .games-toggle {
+    left: 3.25rem;
+  }
+
   .games-panel {
-    width: min(18rem, calc(100vw - 1.5rem));
+    top: 3.2rem;
+    left: 0.5rem;
+    width: calc(100vw - 1rem);
+    max-width: 20rem;
+  }
+
+  .connect-four-board {
+    gap: 0.12rem;
+    padding: 0.25rem;
+  }
+
+  .connect-four-slot {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1;
+  }
+
+  .back-to-top {
+    right: 0.75rem;
+    bottom: 0.75rem;
+    padding: 0.45rem 0.65rem;
+    font-size: 0.7rem;
+  }
+
+  body:has(.spotify-card[data-placement^="fixed-bottom-"]:not([hidden])) .back-to-top {
+    bottom: 5.5rem;
+    right: 0.75rem;
+    left: auto;
+  }
+
+  body:has(.spotify-reopen:not([hidden])) .back-to-top {
+    bottom: 3.5rem;
+  }
+
+  .video-dialog {
+    width: calc(100vw - 1rem);
+    max-height: 92vh;
+    padding: 0.6rem;
+  }
+
+  .code-block {
+    margin: 1.2rem 0;
+    font-size: 0.85em;
+  }
+
+  img,
+  .video-embed video,
+  .audio-embed audio {
+    max-width: 100%;
+    height: auto;
   }
 }
 

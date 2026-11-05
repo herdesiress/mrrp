@@ -1,7 +1,8 @@
 {
   "categories": [
     "misc",
-    "Faq/Guide"
+    "Faq/Guide",
+    "Malware Reports"
   ],
   "pages": [
     {
@@ -13,6 +14,11 @@
       "slug": "spotify-embed",
       "title": "Spotify Embed",
       "category": "Faq/Guide"
+    },
+    {
+      "slug": "macos-infostealer",
+      "title": "Macos Infostealer",
+      "category": "Malware Reports"
     }
   ]
 }
